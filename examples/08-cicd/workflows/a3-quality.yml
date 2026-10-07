@@ -1,0 +1,122 @@
+# CICD-A3｜全链路质量保障：测试矩阵 + Lighthouse CI + 依赖/密钥安全扫描
+# 建议把 test / lighthouse / audit / gitleaks 全部设为分支保护 required checks。
+name: Quality Assurance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # ============ ① 测试金字塔的 CI 部分：单元 + 组件测试，Node 矩阵 ============
+  unit-component-test:
+    name: Unit & Component Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # 单元测试（vitest，约 70%）+ 组件测试（Testing Library，约 20%）
+      # E2E（Playwright，约 10%，只覆盖登录/加购/下单/支付）放 staging 流水线
+      - run: pnpm exec vitest run --coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-${{ matrix.node }}
+          path: coverage/
+
+  # ============ ② 依赖漏洞与供应链审查 ============
+  dependency-security:
+    name: Dependency Security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # dependency-review-action 的最小权限
+    steps:
+      - uses: actions/checkout@v4
+      # 仅 PR 上运行：对依赖增量 diff 做审查，阻断引入高危依赖的合入
+      - uses: actions/dependency-review-action@v4
+        if: github.event_name == 'pull_request'
+        with:
+          fail-on-severity: high # high/critical 阻断；低级别走周报
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # high/critical 漏洞阻断 CI；配合 Dependabot/Renovate 定期升级与可信镜像源
+      - name: pnpm audit
+        run: pnpm audit --audit-level high
+
+  # ============ ③ 密钥泄露检测（pre-commit + CI 双层拦截） ============
+  secret-scan:
+    name: Gitleaks Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 扫描提交历史
+      # gitleaks 官方 Action（占位：首次使用需按其文档配置 GITHUB_TOKEN 权限）
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # 本地层再配 pre-commit hook（gitleaks protect --staged），
+        # 防止绕过 CI；历史仓库做一次性清洗。
+
+  # ============ ④ Lighthouse CI 性能门禁（build 之后、部署之前） ============
+  lighthouse:
+    name: Lighthouse CI Budget
+    runs-on: ubuntu-latest
+    needs: [] # 独立于测试也可；若要求测试先过，改为 needs: unit-component-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # Lighthouse CI 对构建产物本地起静态服务器跑审计，把环境噪声压到最低
+      - name: Install & run Lighthouse CI
+        run: pnpm dlx @lhci/cli@0.15.x autorun
+      # 最小 lighthouserc 配置（放在仓库根目录 lighthouserc.json）：
+      # {
+      #   "ci": {
+      #     "collect": {
+      #       "staticDistDir": "dist",
+      #       "numberOfRuns": 3,
+      #       "settings": { "preset": "desktop" }
+      #     },
+      #     "assert": {
+      #       "preset": "lighthouse:no-pwa",
+      #       "assertions": {
+      #         "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
+      #         "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }],
+      #         "total-blocking-time": ["error", { "maxNumericValue": 200 }]
+      #       }
+      #     },
+      #     "upload": { "target": "temporary-public-storage" }
+      #   }
+      # }
+      # 超预算时输出资源清单 diff 做增量归因；确需放行走豁免流程并声明理由。
+
+  # ============ ⑤ 上线后监控闭环（部署流水线侧的占位说明） ============
+  # 发布完成后按「版本号」聚合 RUM 指标（Sentry 错误率/白屏率 + Web Vitals p75），
+  # 自动对比上一版本；超阈值告警值班群，超时无人响应自动升级，并触发一键回滚流水线。
+  # 监控对比不能用全局均值，必须按 release/version 切片。

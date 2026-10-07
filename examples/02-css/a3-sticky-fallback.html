@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSS-A3 sticky 兼容与降级方案</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #111a30;
+      --cyan: #22d3ee;
+      --violet: #a78bfa;
+      --orange: #f97316;
+      --green: #34d399;
+      --red: #f87171;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+    }
+
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(17, 26, 48, .95);
+      border-bottom: 1px solid #1e293b;
+      backdrop-filter: blur(8px);
+      padding: 10px 20px;
+    }
+
+    .topbar .tag {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--bg);
+      background: var(--cyan);
+      border-radius: 4px;
+      padding: 1px 8px;
+      margin-right: 10px;
+    }
+
+    .topbar .desc {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .wrap {
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 76px 20px 44px;
+    }
+
+    h2 {
+      font-size: 15.5px;
+      margin: 22px 0 10px;
+      color: var(--cyan);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    @media (max-width: 880px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 18px;
+    }
+
+    .card h3 {
+      margin: 0 0 6px;
+      font-size: 15px;
+    }
+
+    .sub {
+      font-size: 12.5px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* 特性检测结果 */
+    .detect {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .detect .ditem {
+      flex: 1;
+      min-width: 140px;
+      background: #0e1626;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12.5px;
+    }
+
+    .ditem .k {
+      color: var(--muted);
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 11.5px;
+    }
+
+    .ditem .v {
+      font-size: 15px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .v.yes {
+      color: var(--green);
+    }
+
+    .v.no {
+      color: var(--red);
+    }
+
+    button {
+      background: #1e293b;
+      color: var(--text);
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 8px 15px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    button.on {
+      background: var(--orange);
+      border-color: var(--orange);
+      color: #2a1402;
+      font-weight: 700;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    /* 滚动演示容器 */
+    .scrollbox {
+      position: relative;
+      height: 380px;
+      overflow-y: auto;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      background: #0e1626;
+    }
+
+    .sec-body {
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .sec-body p {
+      margin: 0 0 10px;
+    }
+
+    .sec-head {
+      /* 原生 sticky：先写老 Safari 前缀，再写标准 */
+      position: -webkit-sticky;
+      position: sticky;
+      top: 0;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #06222a;
+      background: linear-gradient(90deg, var(--violet), var(--cyan));
+      z-index: 2;
+    }
+
+    .sec-head .mode {
+      margin-left: auto;
+      font-size: 11px;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+    }
+
+    .sec-head.h2 {
+      background: linear-gradient(90deg, var(--cyan), var(--green));
+    }
+
+    .sec-head.h3 {
+      background: linear-gradient(90deg, var(--orange), var(--violet));
+    }
+
+    /* 降级模式：sticky 失效（static 基线），由 JS 加 .is-fixed 模拟 */
+    .scrollbox.fallback .sec-head {
+      position: static;
+    }
+
+    .sec-head.is-fixed {
+      position: fixed;
+      /* 由 JS 按容器位置换算 top/left/width */
+      z-index: 5;
+    }
+
+    .shim {
+      display: none;
+    }
+
+    .shim.on {
+      display: block;
+    }
+
+    .status-line {
+      font-size: 12.5px;
+      margin-top: 10px;
+      min-height: 20px;
+    }
+
+    .status-line code {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      color: var(--cyan);
+    }
+
+    pre {
+      background: #0e1626;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 12px 14px;
+      overflow-x: auto;
+      font-size: 12px;
+      color: #cbd5e1;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      margin: 0;
+    }
+
+    ul.traps {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    ul.traps li {
+      margin: 5px 0;
+    }
+
+    code {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      color: var(--cyan);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="topbar">
+    <span class="tag">对应 CSS-A3 sticky 兼容</span>
+    <span class="desc">特性检测结果可视化：原生 sticky 吸顶标题 vs JS scroll + fixed 降级模拟，附 @supports 与工程配置</span>
+  </div>
+
+  <div class="wrap">
+
+    <div class="grid">
+      <div class="card">
+        <h3>吸顶标题演示（请在框内上下滚动）</h3>
+        <div class="sub">渐进增强：static 基线完整可用 → 原生 sticky 叠加吸附 → 不支持时 JS 降级</div>
+        <div class="controls">
+          <button id="btnFallback">开启降级模式：JS scroll + fixed 模拟吸顶</button>
+        </div>
+        <div class="scrollbox" id="box">
+          <section class="sec">
+            <div class="shim" data-shim></div>
+            <div class="sec-head h1" data-head>分组一　订单列表 <span class="mode" data-mode>position: sticky</span></div>
+            <div class="sec-body">
+              <p>原生模式下，这个标题在滚到容器顶部时由 CSS sticky 自动吸附，整个过程不依赖 JS。</p>
+              <p>占位行 · sticky 在跨越 top 阈值前表现为 relative，跨越后表现为 fixed，但始终保留文档流占位。</p>
+              <p>占位行 · 滚动经过下一个分组时，新标题会把旧标题「推走」（受各自父容器高度约束）。</p>
+              <p>占位行 · 继续滚动观察标题切换。</p>
+              <p>占位行 · 分组一最后一行。</p>
+            </div>
+          </section>
+          <section class="sec">
+            <div class="shim" data-shim></div>
+            <div class="sec-head h2" data-head>分组二　物流跟踪 <span class="mode" data-mode>position: sticky</span></div>
+            <div class="sec-body">
+              <p>降级模式下，sticky 被还原为 static，JS 用 rAF 节流监听容器 scroll。</p>
+              <p>占位行 · 通过 getBoundingClientRect 判断标题是否越过容器上沿。</p>
+              <p>占位行 · 越界后加 .is-fixed（fixed + 等高占位 shim）模拟吸附效果。</p>
+              <p>占位行 · 分组滚完、标题底边越过容器顶时解除 fixed，避免遮挡下一分组。</p>
+              <p>占位行 · 分组二最后一行。</p>
+            </div>
+          </section>
+          <section class="sec">
+            <div class="shim" data-shim></div>
+            <div class="sec-head h3" data-head>分组三　售后工单 <span class="mode" data-mode>position: sticky</span></div>
+            <div class="sec-body">
+              <p>fixed 定位的坐标由容器的 getBoundingClientRect 实时换算，resize 时同步更新。</p>
+              <p>占位行 · 这就是 IE11 等底线浏览器的兜底方案。</p>
+              <p>占位行 · 若已放弃旧浏览器，也可直接接受 static 基线、不加载降级脚本。</p>
+              <p>占位行 · 分组三最后一行。</p>
+            </div>
+          </section>
+        </div>
+        <div class="status-line" id="status"></div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <h3>① 特性检测（当前浏览器实测）</h3>
+          <div class="detect">
+            <div class="ditem">
+              <div class="k">CSS.supports('position','sticky')</div>
+              <div class="v" id="dSticky">检测中…</div>
+            </div>
+            <div class="ditem">
+              <div class="k">CSS.supports('position','-webkit-sticky')</div>
+              <div class="v" id="dWebkit">检测中…</div>
+            </div>
+          </div>
+          <div class="sub" style="margin:0">现代浏览器全量支持 sticky（Chrome 91+/Edge 79+/Firefox 32+/Safari 6.1+
+            需前缀）；左侧降级按钮可随时手动模拟旧浏览器路径。</div>
+        </div>
+
+        <div class="card">
+          <h3>② 两个最常见失效陷阱</h3>
+          <ul class="traps">
+            <li>任意祖先元素 <code>overflow: hidden/auto/scroll</code>（非 visible/clip）会让 sticky 失效或行为异常；</li>
+            <li>sticky 受父容器高度约束（父容器必须比它高），且 <code>top</code> 必须显式设置，否则不吸附。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2>@supports 特性检测与 static 基线</h2>
+    <div class="card">
+      <pre>.table-head {
+  position: -webkit-sticky; /* 老版 Safari 需要，Autoprefixer 也会自动补 */
+  position: sticky;
+  top: 56px;
+}
+/* 不支持时走 static 基线：表格功能完整，只是不吸附 */
+@supports not ((position: sticky) or (position: -webkit-sticky)) {
+  .table-head { position: static; }
+}</pre>
+    </div>
+
+    <h2>JS 降级思路（rAF 节流 + 等高占位）</h2>
+    <div class="card">
+      <pre>let ticking = false;
+box.addEventListener('scroll', () => {
+  if (!ticking) {
+    ticking = true;
+    requestAnimationFrame(() => {
+      const boxRect = box.getBoundingClientRect();
+      sections.forEach(sec =&gt; {
+        const head = sec.querySelector('[data-head]');
+        const shim = sec.querySelector('[data-shim]');
+        const headRect = head.getBoundingClientRect();
+        const secBottom = sec.getBoundingClientRect().bottom - boxRect.top;
+        const crossed = headRect.top - boxRect.top &lt;= 0 &amp;&amp; secBottom &gt; headRect.height;
+        head.classList.toggle('is-fixed', crossed);   // fixed + top/left/width 按容器换算
+        shim.classList.toggle('on', crossed);          // 等高占位，防止内容跳动
+        shim.style.height = crossed ? headRect.height + 'px' : '0px';
+      });
+      ticking = false;
+    });
+  }
+});
+/* 降级脚本仅在特性检测失败时按需加载，符合「核心体验优先、增强体验分层」 */</pre>
+    </div>
+
+    <h2>工程链路：Browserslist 驱动 Autoprefixer</h2>
+    <div class="card">
+      <pre># .browserslistrc
+last 2 versions
+safari &gt;= 7
+not dead
+not ie &lt;= 10</pre>
+      <p class="sub" style="margin:10px 0 0">Autoprefixer 据此自动补 <code>-webkit-sticky</code>，避免手写前缀漂移。</p>
+    </div>
+
+  </div>
+
+  <script>
+    // —— 特性检测可视化 ——
+    function fill(id, ok) {
+      const el = document.getElementById(id);
+      el.textContent = ok ? '✔ true' : '✘ false';
+      el.className = 'v ' + (ok ? 'yes' : 'no');
+    }
+    const supportSticky = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('position', 'sticky');
+    const supportWebkit = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('position', '-webkit-sticky');
+    fill('dSticky', supportSticky);
+    fill('dWebkit', supportWebkit);
+
+    // —— 降级模拟 ——
+    const box = document.getElementById('box');
+    const btn = document.getElementById('btnFallback');
+    const status = document.getElementById('status');
+    const heads = [...box.querySelectorAll('[data-head]')];
+    const sections = [...box.querySelectorAll('.sec')];
+    let fallback = false;
+    let ticking = false;
+
+    function applyFallbackPositions() {
+      if (!fallback) return;
+      const boxRect = box.getBoundingClientRect();
+      sections.forEach(sec => {
+        const head = sec.querySelector('[data-head]');
+        const shim = sec.querySelector('[data-shim]');
+        // fixed 态不参与几何计算，用 sec 自身即可；标题高固定 40
+        const headH = 40;
+        const secRect = sec.getBoundingClientRect();
+        const secTop = secRect.top - boxRect.top;
+        const secBottom = secRect.bottom - boxRect.top;
+        const crossed = secTop <= 0 && secBottom > headH;
+        if (crossed) {
+          head.classList.add('is-fixed');
+          head.style.top = boxRect.top + 'px';
+          head.style.left = boxRect.left + 'px';
+          head.style.width = boxRect.width + 'px';
+          shim.classList.add('on');
+          shim.style.height = headH + 'px';
+        } else {
+          head.classList.remove('is-fixed');
+          head.style.top = head.style.left = head.style.width = '';
+          shim.classList.remove('on');
+          shim.style.height = '0px';
+        }
+      });
+    }
+
+    function onScroll() {
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(() => { applyFallbackPositions(); ticking = false; });
+      }
+    }
+    box.addEventListener('scroll', onScroll);
+
+    function clearFallback() {
+      heads.forEach(h => { h.classList.remove('is-fixed'); h.style.top = h.style.left = h.style.width = ''; });
+      box.querySelectorAll('[data-shim]').forEach(s => { s.classList.remove('on'); s.style.height = ''; });
+    }
+
+    btn.addEventListener('click', () => {
+      fallback = !fallback;
+      box.classList.toggle('fallback', fallback);
+      btn.classList.toggle('on', fallback);
+      btn.textContent = fallback
+        ? '关闭降级：回到原生 position: sticky'
+        : '开启降级模式：JS scroll + fixed 模拟吸顶';
+      heads.forEach(h => {
+        h.querySelector('[data-mode]').textContent = fallback ? 'JS → .is-fixed' : 'position: sticky';
+      });
+      if (fallback) {
+        status.innerHTML = '降级中：CSS sticky 已还原为 static 基线，由 <code>scroll + rAF + getBoundingClientRect</code> 驱动 <code>.is-fixed</code>。滚动框体验吸附。';
+        applyFallbackPositions();
+      } else {
+        clearFallback();
+        status.innerHTML = '原生模式：<code>position: sticky; top: 0</code>，零 JS 驱动。';
+      }
+    });
+
+    window.addEventListener('resize', applyFallbackPositions);
+
+    status.innerHTML = supportSticky
+      ? '当前浏览器原生支持 sticky，标题正以 <code>position: sticky</code> 吸附（零 JS）。可点按钮体验降级路径。'
+      : '当前浏览器不支持 sticky，应自动走 JS 降级路径。';
+  </script>
+</body>
+
+</html>

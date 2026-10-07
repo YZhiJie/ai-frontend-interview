@@ -9,6 +9,7 @@
 - **五类题型覆盖**：理论概念题、代码分析题、实际场景应用题、技术选型题、架构设计题
 - **AI 时代视角**：题目融入 LLM 应用、智能体、流式渲染等 AI 时代前端新命题
 - **漫画式教程**：每领域配套一幅四格漫画（1200×840 SVG），让核心概念一眼看懂
+- **可运行示例**：[examples/](examples/) 提供全部代码题的配套实现（tsx 脚本 / 静态 HTML / mock 服务 / Next.js 15 完整工程），均实跑验证，**无需真实 API Key**
 - **门禁校验**：漫画 SVG 通过 `node comics/check-comics.mjs` 自动校验良构性与文本溢出
 
 ## 📚 领域导航
@@ -67,11 +68,23 @@
 
 `comics/` 目录下每领域一幅四格漫画（霓虹墨 NEON INK 风格），前两格讲原理、第三格给实证、第四格总结坑点（橙色标签）与"码叔总结"。可通过浏览器直接打开 SVG，或从各领域文档顶部的链接进入。
 
+## 🧪 可运行示例
+
+所有代码题均有配套实现，见 **[examples/README.md](examples/README.md)**（含完整运行手册）：
+
+- `npx tsx 07-algorithms/run-all.ts` —— 10 个算法模块一键自测
+- `node 04-ai/server.mjs` —— mock SSE 聊天 + 文生图（端口 3401，零密钥）
+- `pnpm --dir 06-nextjs/interview-app dev` —— Next.js 15 完整工程（SSG/ISR/SSR/中间件/SSE）
+- CSS/可视化为静态 HTML，`python3 -m http.server` 即可打开
+
 ## ✅ 质量门禁
 
 ```bash
 # 漫画校验（良构性 / viewBox / 显式 font-size / 单行宽度 ≤545px / 禁用元素）
 node comics/check-comics.mjs
+
+# 示例一键安装（pnpm workspace 统一纳管三个子工程）
+cd examples && pnpm install
 ```
 
 ## 🗂 目录结构
@@ -88,19 +101,30 @@ ai-frontend-interview/
 │   ├── 06-fullstack-nextjs.md
 │   ├── 07-algorithms.md
 │   └── 08-cicd.md
-└── comics/                            # 漫画式教程
-    ├── manifest.json                  # 话数清单
-    ├── check-comics.mjs               # 门禁校验脚本
-    ├── ep01-js-event-loop.svg
-    ├── ep02-css-stacking.svg
-    ├── ep03-viz-canvas-svg.svg
-    ├── ep04-ai-sse.svg
-    ├── ep05-node-eventloop.svg
-    ├── ep06-nextjs-rendering.svg
-    ├── ep07-algo-sorting.svg
-    └── ep08-cicd-pipeline.svg
+├── comics/                            # 漫画式教程
+│   ├── manifest.json                  # 话数清单
+│   ├── check-comics.mjs               # 门禁校验脚本
+│   ├── ep01-js-event-loop.svg
+│   ├── ep02-css-stacking.svg
+│   ├── ep03-viz-canvas-svg.svg
+│   ├── ep04-ai-sse.svg
+│   ├── ep05-node-eventloop.svg
+│   ├── ep06-nextjs-rendering.svg
+│   ├── ep07-algo-sorting.svg
+│   └── ep08-cicd-pipeline.svg
+└── examples/                          # 配套可运行示例（详见 examples/README.md）
+    ├── package.json                   # pnpm workspace 根（tsx/typescript/js-yaml）
+    ├── 01-javascript/                 # 9 个 tsx 单元 + Babel AST 插件子工程
+    ├── 02-css/                        # 8 个可交互静态 HTML
+    ├── 03-data-visualization/         # 5 个 ECharts/D3/Three/Canvas 页面
+    ├── 04-ai/                         # 零依赖 mock SSE + 文生图服务
+    ├── 05-nodejs/                     # 零依赖脚本 + Koa REST API + 迷你脚手架
+    ├── 06-nextjs/interview-app/       # Next.js 15 + React 19 完整工程
+    ├── 07-algorithms/                 # 10 个算法模块 + run-all.ts 一键自测
+    └── 08-cicd/workflows/             # 6 个 GitHub Actions / CNB 流水线样例
 ```
 
 ## 📌 版本记录
 
+- **v1.1.0**（2026-10-07）：新增 [examples/](examples/) 配套可运行示例——40+ 可运行单元，覆盖全部 8 领域（tsx 脚本/静态 HTML/mock 服务/Koa/Next.js 15 完整工程/workflow 样例），经实跑验证
 - **v1.0.0**（2026-10-07）：首发 8 大领域 79 道分级面试题 + 8 幅漫画教程 + 门禁校验脚本

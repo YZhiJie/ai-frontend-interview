@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS-A1 层叠上下文与七层层叠顺序</title>
+<style>
+  :root {
+    --bg: #0b1220; --card: #111a30;
+    --cyan: #22d3ee; --violet: #a78bfa; --orange: #f97316;
+    --text: #e2e8f0; --muted: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    line-height: 1.65;
+  }
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(17,26,48,.95); border-bottom: 1px solid #1e293b;
+    backdrop-filter: blur(8px); padding: 10px 20px;
+  }
+  .topbar .tag {
+    display: inline-block; font-size: 12px; font-weight: 700; color: var(--bg);
+    background: var(--cyan); border-radius: 4px; padding: 1px 8px; margin-right: 10px;
+  }
+  .topbar .desc { font-size: 13px; color: var(--muted); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 76px 20px 48px; }
+  h2 { font-size: 16px; margin: 24px 0 10px; color: var(--cyan); }
+  .grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .card { background: var(--card); border: 1px solid #1e293b; border-radius: 12px; padding: 18px; }
+  .card h3 { margin: 0 0 4px; font-size: 15px; }
+  .sub { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+
+  button {
+    background: #1e293b; color: var(--text); border: 1px solid #334155;
+    border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { border-color: var(--cyan); color: var(--cyan); }
+  button.on { background: var(--orange); border-color: var(--orange); color: #2a1402; font-weight: 700; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+
+  .stage {
+    position: relative; height: 320px; border-radius: 10px;
+    border: 1px dashed #334155; background: #0e1626; overflow: hidden;
+  }
+  .parent-box {
+    position: absolute; left: 36px; top: 46px; width: 280px; height: 210px;
+    background: rgba(167,139,250,.22); border: 2px solid var(--violet);
+    border-radius: 10px;
+    /* 关键开关：形成层叠上下文 */
+    transform: translateZ(0);
+    transition: transform .2s;
+  }
+  .parent-label {
+    position: absolute; top: 8px; left: 10px; font-size: 12px; color: #ddd6fe;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .child-box {
+    position: absolute; left: 130px; top: 96px; width: 230px; height: 120px;
+    background: rgba(34,211,238,.75); border: 2px solid var(--cyan);
+    border-radius: 10px; z-index: 9999;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #06222a; font-weight: 800; font-size: 15px; text-align: center;
+  }
+  .child-box small { font-weight: 600; font-size: 11.5px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .rival-box {
+    position: absolute; left: 268px; top: 168px; width: 230px; height: 120px;
+    background: rgba(249,115,22,.8); border: 2px solid var(--orange);
+    border-radius: 10px; z-index: 2;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #2a1402; font-weight: 800; font-size: 15px; text-align: center;
+  }
+  .rival-box small { font-weight: 600; font-size: 11.5px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+  .verdict {
+    margin-top: 12px; font-size: 13.5px; border-radius: 8px; padding: 10px 14px;
+  }
+  .verdict.locked { background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.35); }
+  .verdict.free { background: rgba(52,211,153,.1); border: 1px solid rgba(52,211,153,.35); }
+
+  pre {
+    background: #0e1626; border: 1px solid #1e293b; border-radius: 8px;
+    padding: 12px 14px; overflow-x: auto; font-size: 12.5px; color: #cbd5e1;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  table.layers { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.layers th, table.layers td { border: 1px solid #1e293b; padding: 7px 9px; }
+  table.layers th { background: #0e1626; color: var(--muted); font-weight: 600; }
+  table.layers td:first-child { text-align: center; font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--cyan); width: 34px; }
+  table.layers tr.hl td { background: rgba(249,115,22,.08); }
+  table.layers tr.hl2 td { background: rgba(34,211,238,.08); }
+  .triggers { font-size: 13px; color: var(--muted); }
+  .triggers li { margin: 3px 0; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--cyan); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="tag">对应 CSS-A1 层叠上下文</span>
+  <span class="desc">z-index:9999 的弹窗为何被 z-index:2 的兄弟盖住？一键移除父容器 transform，观察「封闭空间」被打破</span>
+</div>
+
+<div class="wrap">
+
+  <div class="grid">
+    <div class="card">
+      <h3>经典复现：.child z-index:9999 vs .rival z-index:2</h3>
+      <div class="sub">两个色块的重叠区域，谁在上？</div>
+      <div class="controls">
+        <button id="btnToggle" class="on">移除 .parent 的 transform（打破层叠上下文）</button>
+      </div>
+      <div class="stage">
+        <div class="parent-box" id="parentBox">
+          <span class="parent-label" id="parentLabel">.parent { position:relative; transform:translateZ(0); z-index:auto }</span>
+          <div class="child-box">
+            .child（弹窗）
+            <small>position:absolute; z-index:9999</small>
+          </div>
+        </div>
+        <div class="rival-box">
+          .rival（兄弟元素）
+          <small>position:relative; z-index:2</small>
+        </div>
+      </div>
+      <div class="verdict locked" id="verdict"></div>
+      <pre id="codeBlock"></pre>
+    </div>
+
+    <div class="card">
+      <h3>同一层叠上下文内：七层绘制顺序（底 → 顶）</h3>
+      <div class="sub">先画的在底，后画的在上；z-index 只在同一上下文内部比较</div>
+      <table class="layers">
+        <tr><th>层</th><th>内容</th></tr>
+        <tr><td>1</td><td>层叠上下文根元素的背景与边框</td></tr>
+        <tr><td>2</td><td>负 z-index 的子层叠上下文</td></tr>
+        <tr><td>3</td><td>普通流中非定位块级盒</td></tr>
+        <tr><td>4</td><td>浮动盒（floats）</td></tr>
+        <tr><td>5</td><td>普通流中非定位内联盒 / 文本</td></tr>
+        <tr class="hl"><td>6</td><td><b>z-index:0 / auto 的定位元素</b>，以及 transform 等形成的「auto 级」层叠上下文 —— .parent 在此层</td></tr>
+        <tr class="hl2"><td>7</td><td><b>正 z-index 的子层叠上下文</b>（由小到大）—— .rival z-index:2 在此层</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <h2>层叠上下文常见形成条件（排查层级冲突的第一步）</h2>
+  <div class="card">
+    <ul class="triggers">
+      <li>① 根元素 <code>html</code></li>
+      <li>② <code>position</code> 非 static 且 <code>z-index</code> 非 auto</li>
+      <li>③ flex / grid 子项且 <code>z-index</code> 非 auto</li>
+      <li>④ <code>opacity &lt; 1</code></li>
+      <li>⑤ <code>transform / perspective / filter / mask</code> 非 none（本例即 transform: translateZ(0)）</li>
+      <li>⑥ <code>will-change</code> 声明了可形成上下文的属性</li>
+      <li>⑦ <code>isolation: isolate</code>、<code>mix-blend-mode</code> 非 normal 等</li>
+    </ul>
+    <p class="sub" style="margin-top:10px">
+      结论：层叠上下文是<b>封闭空间</b>——子元素的 z-index 无法逃逸。排查时先确认两个冲突元素是否属于同一层叠上下文，而不是盲目调大 z-index。
+    </p>
+  </div>
+
+</div>
+
+<script>
+  const parentBox = document.getElementById('parentBox');
+  const parentLabel = document.getElementById('parentLabel');
+  const btn = document.getElementById('btnToggle');
+  const verdict = document.getElementById('verdict');
+  const codeBlock = document.getElementById('codeBlock');
+
+  const codeLocked =
+`/* 现状（被盖住）*/
+.parent {
+  position: relative;
+  transform: translateZ(0); /* 关键：形成层叠上下文 */
+  z-index: auto;
+}
+.child  { position: absolute; z-index: 9999; } /* 9999 只在 parent 内部有效 */
+.rival  { position: relative; z-index: 2; }    /* 外层比较：2 &gt; auto(第6层) */`;
+
+  const codeFree =
+`/* 移除 transform 后 */
+.parent { position: relative; /* 无 transform、z-index:auto → 不形成上下文 */ }
+.child  { position: absolute; z-index: 9999; } /* 直接参与根上下文第 7 层比较 */
+.rival  { position: relative; z-index: 2; }    /* 9999 &gt; 2 → .child 立刻置顶 */`;
+
+  let locked = true;
+  function render() {
+    if (locked) {
+      parentBox.style.transform = 'translateZ(0)';
+      parentLabel.textContent = '.parent { position:relative; transform:translateZ(0); z-index:auto } → 已形成层叠上下文';
+      btn.classList.add('on');
+      btn.textContent = '移除 .parent 的 transform（打破层叠上下文）';
+      verdict.className = 'verdict locked';
+      verdict.innerHTML =
+        '🔒 <b>.rival 盖住 .child</b>。transform 使 .parent 成为独立层叠上下文，.child 的 9999 只在 parent 内部比较、无法逃逸；'
+        + '对外 .parent 整体以 z-index:auto 身份排在<b>第 6 层</b>，而 .rival z-index:2 位于<b>第 7 层</b>，故 rival 连同其覆盖区域整体压在上面。';
+      codeBlock.textContent = codeLocked;
+    } else {
+      parentBox.style.transform = '';
+      parentLabel.textContent = '.parent { position:relative } → 不再形成层叠上下文';
+      btn.classList.remove('on');
+      btn.textContent = '恢复 transform: translateZ(0)';
+      verdict.className = 'verdict free';
+      verdict.innerHTML =
+        '✅ <b>.child 立刻置顶</b>。.parent 不再形成层叠上下文后，.child 的 z-index:9999 直接拿到根层叠上下文的第 7 层参与比较，9999 &gt; 2，弹窗逃逸成功。';
+      codeBlock.textContent = codeFree;
+    }
+  }
+  btn.addEventListener('click', () => { locked = !locked; render(); });
+  render();
+</script>
+</body>
+</html>

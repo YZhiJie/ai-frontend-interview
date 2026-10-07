@@ -1,0 +1,36 @@
+# CICD-B3｜最简 GitHub Actions 工作流（pnpm 前端项目）
+# 用法：复制到仓库 .github/workflows/ci.yml 即可生效
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 检出代码
+      - uses: actions/checkout@v4
+
+      # 2. 安装 pnpm（必须在 setup-node 之前，后者的 cache: pnpm 依赖 pnpm 可用）
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4 # 固定 pnpm 版本，保证团队与 CI 行为一致
+
+      # 3. 安装 Node 20，并按 lockfile 哈希缓存 pnpm store
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # 4. 严格按 lockfile 安装，依赖不一致直接失败（可复现构建）
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 5. 构建
+      - name: Build
+        run: pnpm build

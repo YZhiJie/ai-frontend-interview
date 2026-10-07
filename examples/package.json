@@ -1,0 +1,16 @@
+{
+  "name": "ai-frontend-interview-examples",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI 前端面试题库配套可运行示例（01/07 共享 tsx，08 用 js-yaml 校验；其余领域为独立子工程或零依赖文件）",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "js-yaml": "^4.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}

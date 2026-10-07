@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS-I3 五种定位综合布局</title>
+<style>
+  :root {
+    --bg: #0b1220; --card: #111a30;
+    --cyan: #22d3ee; --violet: #a78bfa; --orange: #f97316; --green: #34d399;
+    --text: #e2e8f0; --muted: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    line-height: 1.75;
+    /* static 内容区：padding-top 补偿 fixed 导航的 56px 占位 */
+    padding-top: 56px;
+  }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; color: var(--cyan); }
+
+  /* ===== fixed 顶部导航（同时承担说明条职责）===== */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 100;
+    background: rgba(17,26,48,.97); border-bottom: 1px solid #1e293b;
+    display: flex; align-items: center; padding: 0 18px; gap: 14px;
+  }
+  .nav-logo {
+    /* relative：原位微调，不脱离文档流；同时是其内部绝对定位元素的包含块 */
+    position: relative; top: 1px;
+    width: 30px; height: 30px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: #06222a; font-size: 14px; flex: none;
+  }
+  .nav .tag {
+    font-size: 12px; font-weight: 700; color: var(--bg);
+    background: var(--cyan); border-radius: 4px; padding: 1px 8px; flex: none;
+  }
+  .nav .desc { font-size: 12.5px; color: var(--muted); }
+  .nav .spacer { flex: 1; }
+  .nav .nav-item { font-size: 13px; color: var(--muted); padding: 4px 10px; }
+  .pos-chip {
+    font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 0 6px;
+    margin-left: 6px; vertical-align: 1px;
+  }
+  .chip-fixed { background: var(--orange); color: #2a1402; }
+  .chip-sticky { background: var(--violet); color: #2e1065; }
+  .chip-static { background: #475569; color: #e2e8f0; }
+  .chip-absolute { background: var(--green); color: #052e1b; }
+  .chip-relative { background: var(--cyan); color: #06222a; }
+
+  /* ===== 布局：侧栏 sticky + 内容 static ===== */
+  .layout { display: flex; align-items: flex-start; }
+  .sidebar {
+    position: sticky; top: 56px;            /* 吸附点 = 导航下沿 */
+    width: 220px; flex: none;
+    height: calc(100vh - 56px);
+    background: var(--card); border-right: 1px solid #1e293b;
+    padding: 16px 12px; overflow-y: auto;
+  }
+  .sidebar h4 { margin: 4px 8px 10px; font-size: 12px; color: var(--muted); letter-spacing: .08em; }
+  .sidebar a {
+    display: block; padding: 8px 12px; border-radius: 6px;
+    color: var(--text); text-decoration: none; font-size: 13.5px;
+  }
+  .sidebar a:hover, .sidebar a.cur { background: rgba(34,211,238,.12); color: var(--cyan); }
+
+  .content {
+    /* static：零成本参与文档流 */
+    flex: 1; min-width: 0; padding: 22px 28px 80px;
+  }
+  .card {
+    background: var(--card); border: 1px solid #1e293b;
+    border-radius: 12px; padding: 18px 20px; margin-bottom: 18px;
+  }
+  .card h2 { margin: 0 0 6px; font-size: 17px; color: var(--cyan); }
+  .card h2 .pos-chip { font-size: 11px; }
+
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0 4px; }
+  button {
+    background: #1e293b; color: var(--text); border: 1px solid #334155;
+    border-radius: 6px; padding: 7px 13px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { border-color: var(--cyan); color: var(--cyan); }
+  button.on { background: var(--orange); border-color: var(--orange); color: #2a1402; font-weight: 700; }
+  .note { font-size: 12.5px; color: var(--muted); }
+
+  /* static / relative 对比标记 */
+  .marker-demo {
+    background: #0e1626; border: 1px dashed #334155; border-radius: 8px;
+    padding: 14px 16px; font-size: 13.5px;
+  }
+  #marker {
+    display: inline-block; padding: 2px 10px; border-radius: 5px;
+    background: rgba(167,139,250,.25); border: 1px solid var(--violet);
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px;
+  }
+  #marker.rel { position: relative; top: -8px; left: 14px; background: rgba(34,211,238,.25); border-color: var(--cyan); }
+  .ghost { opacity: .35; text-decoration: line-through; }
+
+  /* ===== FAB 客服按钮 ===== */
+  .fab {
+    position: fixed; right: 24px; bottom: 24px; z-index: 100;
+    width: 56px; height: 56px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--orange), #ea580c);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; box-shadow: 0 8px 24px rgba(249,115,22,.4);
+    cursor: pointer; transition: position .15s;
+  }
+  .fab.abs {
+    position: absolute; /* 无定位祖先 → 相对初始包含块，滚动时会随文档走 */
+  }
+  .fab-badge {
+    /* absolute：相对最近定位祖先（fixed/absolute 的 .fab） */
+    position: absolute; top: -4px; right: -4px;
+    min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+    background: #ef4444; color: #fff; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fab-label {
+    position: absolute; bottom: 64px; right: 0; white-space: nowrap;
+    font-size: 11.5px; color: var(--muted);
+    background: rgba(11,18,32,.9); border: 1px solid #1e293b;
+    padding: 2px 8px; border-radius: 5px;
+  }
+  pre {
+    background: #0e1626; border: 1px solid #1e293b; border-radius: 8px;
+    padding: 12px 14px; overflow-x: auto; font-size: 12.5px; color: #cbd5e1;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+</style>
+</head>
+<body>
+
+<!-- 1. fixed 顶部导航 -->
+<nav class="nav">
+  <div class="nav-logo">A</div>
+  <span class="tag">对应 CSS-I3 五种定位</span>
+  <span class="desc">后台骨架：fixed 导航 · sticky 侧栏 · static 长文 · fixed/absolute 客服按钮 · relative logo 微调（滚动页面体验）</span>
+  <span class="spacer"></span>
+  <span class="nav-item">首页</span>
+  <span class="nav-item">订单</span>
+  <span class="nav-item">我的</span>
+</nav>
+
+<div class="layout">
+
+  <!-- 2. sticky 左侧目录 -->
+  <aside class="sidebar">
+    <h4>吸顶目录 <span class="pos-chip chip-sticky">sticky</span></h4>
+    <a href="#sec-fixed" class="cur">fixed 导航</a>
+    <a href="#sec-sticky">sticky 侧栏</a>
+    <a href="#sec-static">static 内容</a>
+    <a href="#sec-relative">relative 微调</a>
+    <a href="#sec-fab">客服按钮</a>
+    <a href="#sec-summary">取舍总结</a>
+    <h4 style="margin-top:18px">长文占位</h4>
+    <a href="#sec-l1">段落 1</a>
+    <a href="#sec-l2">段落 2</a>
+    <a href="#sec-l3">段落 3</a>
+  </aside>
+
+  <!-- 3. static 中部长文 -->
+  <main class="content">
+
+    <div class="card" id="sec-fixed">
+      <h2>顶部导航 <span class="pos-chip chip-fixed">fixed</span></h2>
+      <p class="note">相对视口定位、脱离文档流，滚动时始终钉在顶部；body 用 padding-top:56px 补偿它的占位，否则正文被遮挡。</p>
+      <pre>.nav { position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 100; }</pre>
+    </div>
+
+    <div class="card" id="sec-sticky">
+      <h2>左侧目录 <span class="pos-chip chip-sticky">sticky</span></h2>
+      <p class="note">不脱离文档流、保留占位；滚动到 top:56px（导航下沿）后吸附。<b>失效陷阱：</b>任意祖先 overflow 非 visible/clip、父容器比它矮、或没设 top。</p>
+      <pre>.sidebar { position: sticky; top: 56px; height: calc(100vh - 56px); }</pre>
+    </div>
+
+    <div class="card" id="sec-static">
+      <h2>正文区 <span class="pos-chip chip-static">static</span></h2>
+      <p class="note">常规流零成本，天然充当 sticky 侧栏的滚动祖先，只需 padding-top 补偿 fixed 导航。</p>
+    </div>
+
+    <div class="card" id="sec-relative">
+      <h2>relative 原位偏移实验 <span class="pos-chip chip-relative" id="relChip">static</span></h2>
+      <p class="note">relative 保留原占位，只做视觉偏移；更重要的价值是充当 absolute 子元素的包含块（见客服角标）。</p>
+      <div class="marker-demo">
+        这行文字中有一个
+        <span id="marker">#marker</span><span id="markerGhost"></span>
+        标记，点击按钮在 static / relative(top:-8px; left:14px) 间切换：注意它偏移后<b>原来的位置仍然留空</b>，后续文字不会补位。
+      </div>
+      <div class="controls">
+        <button id="btnRel">切换 #marker 为 relative</button>
+      </div>
+    </div>
+
+    <div class="card" id="sec-fab">
+      <h2>右下角客服按钮 <span class="pos-chip chip-fixed" id="fabChip">fixed</span> + 角标 <span class="pos-chip chip-absolute">absolute</span></h2>
+      <p class="note">FAB 为 fixed 时相对视口、滚动不动；切成 absolute（本页无定位祖先）后相对初始包含块，<b>向下滚动它会随文档滚走</b>。红色角标始终 absolute 锚定在按钮右上角。</p>
+      <div class="controls">
+        <button id="btnFab" class="on">当前：fixed（钉在视口右下角）</button>
+      </div>
+    </div>
+
+    <!-- 长文填充，体现 sticky/fixed -->
+    <div class="card" id="sec-l1"><h2>长文段落 1</h2><p>向下滚动：导航保持在顶部（fixed），左侧目录滚动到导航下沿后吸顶跟随（sticky），而本内容区正常随文档滚动（static）。</p><p style="color:var(--muted)">占位文字……布局定位的取舍核心就两点：是否脱离文档流、包含块是谁。fixed/absolute 脱离文档流要自己补偿占位；sticky 不脱离、保留占位；relative 也保留占位只做视觉偏移。</p></div>
+    <div class="card" id="sec-l2"><h2>长文段落 2</h2><p>观察右下角客服按钮的两种表现：fixed 时它无视滚动；absolute 时它属于页面坐标，会被滚出视口。角标用 absolute 相对按钮（按钮在两种模式下都是定位元素）定位。</p><p style="color:var(--muted)">占位文字……sticky 的吸顶依赖最近滚动祖先；本页 body 滚动、侧栏父级 flex 容器没有 overflow 裁剪，所以 sticky 正常工作。</p></div>
+    <div class="card" id="sec-l3"><h2>长文段落 3</h2><p>继续滚到底部，可以验证 sticky 元素受父容器高度约束——侧栏跟随整个 .layout 容器，容器结束它也结束。</p><p style="color:var(--muted)">占位文字……absolute 滥用容易导致布局碎片化：它完全脱离文档流，相对最近的定位祖先偏移，因此父级必须被正确「定位化」（relative 最常用）。</p></div>
+
+    <div class="card" id="sec-summary">
+      <h2>五种定位取舍总结</h2>
+      <pre>static   常规流，top/right/bottom/left 与 z-index 无效
+relative 常规流原位 + 视觉偏移，占位保留；常作 absolute 的包含块
+absolute 脱离文档流，相对最近「定位祖先」偏移，无则相对初始包含块
+fixed    脱离文档流，相对视口（弹窗/导航/悬浮按钮），需补偿占位
+sticky   不脱离文档流，跨过 top 阈值前为 relative、之后表现为 fixed 吸附</pre>
+    </div>
+
+  </main>
+</div>
+
+<!-- 4/5. FAB（fixed/absolute 可切）+ absolute 角标 -->
+<div class="fab on" id="fab">
+  💬
+  <span class="fab-badge">3</span>
+  <span class="fab-label" id="fabLabel">fixed：相对视口，滚动不动</span>
+</div>
+
+<script>
+  // static / relative 切换
+  const marker = document.getElementById('marker');
+  const btnRel = document.getElementById('btnRel');
+  const relChip = document.getElementById('relChip');
+  btnRel.addEventListener('click', () => {
+    const rel = marker.classList.toggle('rel');
+    btnRel.classList.toggle('on', rel);
+    btnRel.textContent = rel ? '切回 static' : '切换 #marker 为 relative';
+    relChip.textContent = rel ? 'relative' : 'static';
+    relChip.className = 'pos-chip ' + (rel ? 'chip-relative' : 'chip-static');
+  });
+
+  // FAB fixed / absolute 切换
+  const fab = document.getElementById('fab');
+  const btnFab = document.getElementById('btnFab');
+  const fabChip = document.getElementById('fabChip');
+  const fabLabel = document.getElementById('fabLabel');
+  btnFab.addEventListener('click', () => {
+    const abs = fab.classList.toggle('abs');
+    btnFab.classList.toggle('on', !abs);
+    btnFab.textContent = abs ? '当前：absolute（向下滚动会随文档滚走）—— 点我切回 fixed' : '当前：fixed（钉在视口右下角）';
+    fabChip.textContent = abs ? 'absolute' : 'fixed';
+    fabChip.className = 'pos-chip ' + (abs ? 'chip-absolute' : 'chip-fixed');
+    fabLabel.textContent = abs ? 'absolute：相对初始包含块，随滚动离开' : 'fixed：相对视口，滚动不动';
+  });
+</script>
+</body>
+</html>

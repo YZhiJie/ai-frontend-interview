@@ -1,0 +1,14 @@
+{
+  "name": "i1-koa-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NODE-I1｜Koa 规范化 RESTful API 示列（洋葱模型 + 统一响应 + 全局错误兜底）",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@koa/router": "^13.1.0",
+    "koa": "^2.15.0"
+  }
+}

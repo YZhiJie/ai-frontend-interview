@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIZ-A3 百万级数据渲染优化（LTTB + 虚拟列表）</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #111a30;
+      --cyan: #22d3ee;
+      --violet: #a78bfa;
+      --orange: #f97316;
+      --green: #34d399;
+      --red: #f87171;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+    }
+
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(17, 26, 48, .95);
+      border-bottom: 1px solid #1e293b;
+      backdrop-filter: blur(8px);
+      padding: 10px 20px;
+    }
+
+    .topbar .tag {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--bg);
+      background: var(--cyan);
+      border-radius: 4px;
+      padding: 1px 8px;
+      margin-right: 10px;
+    }
+
+    .topbar .desc {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 76px 20px 44px;
+    }
+
+    h2 {
+      font-size: 15.5px;
+      color: var(--cyan);
+      margin: 22px 0 8px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    .card h3 {
+      margin: 0 0 4px;
+      font-size: 15px;
+    }
+
+    .sub {
+      font-size: 12.5px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+
+    button {
+      background: #1e293b;
+      color: var(--text);
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    button.on {
+      font-weight: 700;
+    }
+
+    button.on.a {
+      background: var(--red);
+      border-color: var(--red);
+      color: #2a0606;
+    }
+
+    button.on.b {
+      background: var(--green);
+      border-color: var(--green);
+      color: #052e1b;
+    }
+
+    .sep {
+      width: 1px;
+      height: 22px;
+      background: #334155;
+      margin: 0 4px;
+    }
+
+    .grp-label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    #cv {
+      width: 100%;
+      height: 300px;
+      display: block;
+      border-radius: 8px;
+      border: 1px solid #1e293b;
+      background: #05080f;
+    }
+
+    .stats {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .stat {
+      flex: 1;
+      min-width: 130px;
+      background: #0e1626;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 9px 12px;
+    }
+
+    .stat .k {
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+
+    .stat .v {
+      font-size: 19px;
+      font-weight: 800;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+    }
+
+    .v.good {
+      color: var(--green);
+    }
+
+    .v.bad {
+      color: var(--red);
+    }
+
+    .v.mid {
+      color: var(--orange);
+    }
+
+    .v.cy {
+      color: var(--cyan);
+    }
+
+    pre {
+      background: #0e1626;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-size: 12.5px;
+      color: #cbd5e1;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      line-height: 1.55;
+    }
+
+    code {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      color: var(--cyan);
+    }
+
+    .note {
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    .note li {
+      margin: 4px 0;
+    }
+
+    /* 虚拟列表 */
+    #vlist {
+      position: relative;
+      height: 360px;
+      overflow-y: auto;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      background: #0e1626;
+    }
+
+    #vphantom {
+      position: relative;
+    }
+
+    .vrow {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      font-size: 13px;
+      border-bottom: 1px solid #172033;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+    }
+
+    .vrow:nth-child(odd) {
+      background: rgba(148, 163, 184, .03);
+    }
+
+    .vrow .idx {
+      color: var(--violet);
+      width: 110px;
+      flex: none;
+    }
+
+    .vrow .barwrap {
+      flex: 1;
+      height: 6px;
+      background: #172033;
+      border-radius: 3px;
+      margin: 0 12px;
+      overflow: hidden;
+    }
+
+    .vrow .bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--violet));
+    }
+
+    .vrow .val {
+      width: 90px;
+      text-align: right;
+      color: var(--muted);
+      flex: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="topbar">
+    <span class="tag">对应 VIZ-A3 大数据量渲染</span>
+    <span class="desc">5 万点曲线：全量绘制 vs LTTB 降采样 500 点 + 视图内绘制的帧率/耗时对比；另附 10000 行 DOM 虚拟列表</span>
+  </div>
+
+  <div class="wrap">
+
+    <!-- ============ Canvas 对比 ============ -->
+    <h2>① Canvas：5 万数据点，全量绘制 vs LTTB 降采样（持续滚动以持续产生重绘）</h2>
+    <div class="card">
+      <h3>带噪声时序曲线（N = 50,000）</h3>
+      <div class="sub">朴素方案每帧把 5 万点全量喂给 Canvas 2D；优化方案先按视窗取点，再用 LTTB 降采样到 500 点后绘制</div>
+      <div class="controls">
+        <span class="grp-label">绘制方案：</span>
+        <button id="modeA" class="on a">全量绘制（5 万点/帧）</button>
+        <button id="modeB">LTTB → 500 点 + 视图内绘制</button>
+        <span class="sep"></span>
+        <span class="grp-label">视窗：</span>
+        <button class="win" data-win="5000">5,000</button>
+        <button class="win on" data-win="10000">10,000</button>
+        <button class="win" data-win="50000">全量 50,000</button>
+      </div>
+      <canvas id="cv"></canvas>
+      <div class="stats">
+        <div class="stat">
+          <div class="k">实时 FPS</div>
+          <div class="v cy" id="sFps">--</div>
+        </div>
+        <div class="stat">
+          <div class="k">平均绘制耗时</div>
+          <div class="v" id="sDraw">--</div>
+        </div>
+        <div class="stat">
+          <div class="k">本帧绘制点数</div>
+          <div class="v" id="sPts">--</div>
+        </div>
+        <div class="stat">
+          <div class="k">LTTB 降采样耗时</div>
+          <div class="v" id="sLttb">--</div>
+        </div>
+        <div class="stat">
+          <div class="k">长帧(&gt;20ms)</div>
+          <div class="v" id="sLong">0</div>
+        </div>
+      </div>
+      <p class="note" style="margin-top:10px">
+        数据侧降采样是第一优先级：屏幕像素有限，500 点已足以表达曲线形状与峰谷；真实工程中缩放时按当前范围在 Worker 里重新 LTTB（本页在主线程同步执行并单独计时，耗时已含在统计中）。
+      </p>
+    </div>
+
+    <!-- ============ 虚拟列表 ============ -->
+    <h2>② DOM 虚拟列表：10,000 行只渲染可视区 ~20 行</h2>
+    <div class="card">
+      <h3>联动演示（快速滚动，观察 DOM 数量恒定）</h3>
+      <div class="sub">列表层只渲染视口内的行 + 上下少量 overscan，DOM/实例数量只与视口相关、与数据总量无关</div>
+      <div id="vlist">
+        <div id="vphantom"></div>
+      </div>
+      <div class="stats">
+        <div class="stat">
+          <div class="k">数据总行数</div>
+          <div class="v cy">10,000</div>
+        </div>
+        <div class="stat">
+          <div class="k">实际 DOM 行数</div>
+          <div class="v good" id="sRows">0</div>
+        </div>
+        <div class="stat">
+          <div class="k">滚动位置</div>
+          <div class="v mid" id="sScroll">0 px</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>完整优化方案分层（文档答案要点）</h2>
+    <div class="card">
+      <ul class="note">
+        <li><b>数据侧</b>：LTTB（三角形面积最大，保形状/峰谷）、min-max（每桶保留极值，告警峰值不丢）；缩放时按视窗重新降采样并按层级缓存。</li>
+        <li><b>渲染侧</b>：单条海量曲线用 WebGL 批量绘制（ECharts GL / regl / 自建 shader），顶点一次性提交 GPU；纯 DOM/SVG 在百万量级不可行。</li>
+        <li><b>列表层</b>：虚拟滚动，不可见图表销毁实例或留占位（上方即最小实现）。</li>
+        <li><b>计算侧</b>：降采样/统计聚合移入 Web Worker，大数组用 Transferable(ArrayBuffer) 传输。</li>
+        <li><b>调度侧</b>：首屏只画可视区间，其余 requestIdleCallback / rAF 分片初始化，单帧超 8ms 预算就让出主线程。</li>
+        <li><b>交互侧</b>：tooltip 查值用二分/预建索引；降采样后展示「已抽稀」提示保证数据诚实。</li>
+      </ul>
+    </div>
+
+    <h2>LTTB 核心实现（本页实际使用）</h2>
+    <div class="card">
+      <pre>// Largest-Triangle-Three-Buckets：每桶选与「前一选中点 + 下一桶均值」构成三角形面积最大的点
+function lttb(data, threshold) {
+  const n = data.length;
+  if (threshold &gt;= n || threshold &lt; 3) return data.slice();
+  const out = [data[0]];
+  const bucket = (n - 2) / (threshold - 2);
+  let a = 0;
+  for (let i = 0; i &lt; threshold - 2; i++) {
+    let sx = 0, sy = 0; const s0 = Math.floor((i + 1) * bucket) + 1;
+    const s1 = Math.min(Math.floor((i + 2) * bucket) + 1, n - 1);
+    for (let j = s0; j &lt; s1; j++) { sx += data[j][0]; sy += data[j][1]; }
+    const cnt = s1 - s0, ax = sx / cnt, ay = sy / cnt;       // 下一桶均值
+    const r0 = Math.floor(i * bucket) + 1, r1 = Math.floor((i + 1) * bucket) + 1;
+    let best = -1, bestArea = -1;
+    for (let j = r0; j &lt; r1; j++) {                           // 当前桶内找最大面积
+      const area = Math.abs((data[a][0] - ax) * (data[j][1] - data[a][1])
+                          - (data[a][0] - data[j][0]) * (ay - data[a][1])) * 0.5;
+      if (area &gt; bestArea) { bestArea = area; best = j; }
+    }
+    out.push(data[best]); a = best;
+  }
+  out.push(data[n - 1]);
+  return out;
+}</pre>
+    </div>
+
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      /* ---------------- 数据生成：5 万点带噪声曲线 ---------------- */
+      const N = 50000;
+      const data = new Array(N);
+      let seed = 42;
+      function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646 - 0.5; }
+      for (let i = 0; i < N; i++) {
+        const y = 50 + 28 * Math.sin(i / 420) + 11 * Math.sin(i / 53) + rnd() * 9;
+        data[i] = [i, y];
+      }
+
+      /* ---------------- LTTB 降采样 ---------------- */
+      function lttb(input, threshold) {
+        const n = input.length;
+        if (threshold >= n || threshold < 3) return input.slice();
+        const out = [input[0]];
+        const bucket = (n - 2) / (threshold - 2);
+        let a = 0;
+        for (let i = 0; i < threshold - 2; i++) {
+          let sx = 0, sy = 0;
+          const s0 = Math.floor((i + 1) * bucket) + 1;
+          const s1 = Math.min(Math.floor((i + 2) * bucket) + 1, n - 1);
+          for (let j = s0; j < s1; j++) { sx += input[j][0]; sy += input[j][1]; }
+          const cnt = s1 - s0 || 1, ax = sx / cnt, ay = sy / cnt;
+          const r0 = Math.floor(i * bucket) + 1;
+          const r1 = Math.min(Math.floor((i + 1) * bucket) + 1, n);
+          let best = r0, bestArea = -1;
+          for (let j = r0; j < r1; j++) {
+            const area = Math.abs(
+              (input[a][0] - ax) * (input[j][1] - input[a][1]) -
+              (input[a][0] - input[j][0]) * (ay - input[a][1])
+            ) * 0.5;
+            if (area > bestArea) { bestArea = area; best = j; }
+          }
+          out.push(input[best]);
+          a = best;
+        }
+        out.push(input[n - 1]);
+        return out;
+      }
+
+      /* ---------------- Canvas 渲染循环 ---------------- */
+      const cv = document.getElementById('cv');
+      const ctx = cv.getContext('2d');
+      let CW = 0, CH = 0;
+      function resizeCanvas() {
+        const dpr = 1; // 性能对比场景固定 1x，避免 DPR 干扰耗时
+        CW = cv.clientWidth; CH = cv.clientHeight;
+        cv.width = CW * dpr; cv.height = CH * dpr;
+      }
+      resizeCanvas();
+
+      let mode = 'full';       // 'full' | 'lttb'
+      let winSize = 10000;
+      let winStart = 0;
+      let sampledCache = null;
+
+      // 统计
+      const S = { frames: [], drawMs: [], lttbMs: [], pts: 0, long: 0, lastFpsT: 0, framesSince: 0 };
+
+      const Y_MIN = 0, Y_MAX = 100;
+      const PAD_L = 44, PAD_R = 12, PAD_T = 14, PAD_B = 22;
+
+      function drawGrid() {
+        ctx.strokeStyle = '#152033';
+        ctx.lineWidth = 1;
+        ctx.fillStyle = '#64748b';
+        ctx.font = '11px ui-monospace, Menlo, Consolas, monospace';
+        ctx.beginPath();
+        for (let g = 0; g <= 4; g++) {
+          const yy = PAD_T + (CH - PAD_T - PAD_B) * g / 4;
+          ctx.moveTo(PAD_L, yy); ctx.lineTo(CW - PAD_R, yy);
+          ctx.fillText(String(Math.round(Y_MAX - (Y_MAX - Y_MIN) * g / 4)), 8, yy + 4);
+        }
+        ctx.stroke();
+      }
+
+      function renderFrame(now) {
+        // 视窗滚动
+        winStart += Math.round(winSize * 0.004) + 8;
+        if (winStart + winSize > N) winStart = 0;
+
+        ctx.fillStyle = '#05080f';
+        ctx.fillRect(0, 0, CW, CH);
+        drawGrid();
+
+        let points, lttbMs = 0, pts;
+        const t0 = performance.now();
+
+        if (mode === 'full') {
+          // 朴素方案：不裁剪视窗、不降采样，全量 5 万点拼路径（Canvas 自动裁剪屏外像素，但 CPU 路径成本照付）
+          points = data;
+        } else {
+          // 优化方案：先按视窗取点（视图内绘制），再 LTTB 到 500
+          const end = Math.min(N, winStart + winSize);
+          const view = data.slice(winStart, end); // 视图内绘制：只取当前窗口数据
+          const tl = performance.now();
+          points = lttb(view, 500);
+          lttbMs = performance.now() - tl;
+          sampledCache = points;
+        }
+        pts = points.length;
+
+        const span = Math.max(1, winSize - 1);
+        const xOf = i => PAD_L + (CW - PAD_L - PAD_R) * (i - winStart) / span;
+        const yOf = v => PAD_T + (CH - PAD_T - PAD_B) * (1 - (v - Y_MIN) / (Y_MAX - Y_MIN));
+
+        ctx.lineWidth = mode === 'full' ? 1 : 1.6;
+        ctx.strokeStyle = mode === 'full' ? 'rgba(248,113,113,.85)' : '#34d399';
+        ctx.beginPath();
+        for (let i = 0; i < pts; i++) {
+          const px = xOf(points[i][0]), py = yOf(points[i][1]);
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+
+        // 视窗范围文字
+        ctx.fillStyle = mode === 'full' ? '#f87171' : '#34d399';
+        ctx.font = '12px ui-monospace, Menlo, Consolas, monospace';
+        ctx.fillText(
+          (mode === 'full' ? '全量绘制 ' : 'LTTB 500 ') +
+          '| 视窗 [' + winStart + ', ' + Math.min(N, winStart + winSize) + ')',
+          PAD_L + 6, PAD_T + 14
+        );
+
+        const drawMs = performance.now() - t0;
+        S.drawMs.push(drawMs);
+        S.lttbMs.push(lttbMs);
+        S.pts = pts;
+        if (drawMs > 20) S.long++;
+        if (S.frames.length > 60) { S.drawMs.shift(); S.lttbMs.shift(); }
+
+        S.framesSince++;
+        if (!S.lastFpsT) S.lastFpsT = now;
+        if (now - S.lastFpsT >= 500) {
+          const fps = Math.round(S.framesSince * 1000 / (now - S.lastFpsT));
+          const avgDraw = S.drawMs.reduce((a, b) => a + b, 0) / S.drawMs.length;
+          const avgLttb = S.lttbMs.reduce((a, b) => a + b, 0) / S.lttbMs.length;
+          const fEl = document.getElementById('sFps');
+          fEl.textContent = fps;
+          fEl.className = 'v ' + (fps >= 55 ? 'good' : fps >= 35 ? 'mid' : 'bad');
+          const dEl = document.getElementById('sDraw');
+          dEl.textContent = avgDraw.toFixed(2) + ' ms';
+          dEl.className = 'v ' + (avgDraw <= 6 ? 'good' : avgDraw <= 16 ? 'mid' : 'bad');
+          document.getElementById('sPts').textContent = pts.toLocaleString();
+          const lEl = document.getElementById('sLttb');
+          lEl.textContent = mode === 'lttb' ? avgLttb.toFixed(2) + ' ms' : '—';
+          lEl.className = 'v ' + (mode === 'lttb' ? (avgLttb <= 5 ? 'good' : 'mid') : '');
+          const lgEl = document.getElementById('sLong');
+          lgEl.textContent = S.long;
+          lgEl.className = 'v ' + (S.long === 0 ? 'good' : 'bad');
+          S.framesSince = 0; S.lastFpsT = now;
+        }
+
+        requestAnimationFrame(renderFrame);
+      }
+
+      /* 控件 */
+      const modeA = document.getElementById('modeA');
+      const modeB = document.getElementById('modeB');
+      function setMode(m) {
+        mode = m;
+        modeA.classList.toggle('on', m === 'full');
+        modeB.classList.toggle('on', m === 'lttb');
+        S.drawMs.length = 0; S.lttbMs.length = 0; S.long = 0;
+      }
+      modeA.addEventListener('click', () => setMode('full'));
+      modeB.addEventListener('click', () => setMode('lttb'));
+      document.querySelectorAll('.win').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.win').forEach(b => b.classList.remove('on'));
+          btn.classList.add('on');
+          winSize = parseInt(btn.dataset.win, 10);
+          winStart = 0;
+          S.drawMs.length = 0; S.lttbMs.length = 0; S.long = 0;
+        });
+      });
+      window.addEventListener('resize', resizeCanvas);
+      requestAnimationFrame(renderFrame);
+
+      /* ---------------- 虚拟列表（10000 行） ---------------- */
+      const ROWS = 10000, ROW_H = 32, OVERSCAN = 3;
+      const vlist = document.getElementById('vlist');
+      const phantom = document.getElementById('vphantom');
+      phantom.style.height = ROWS * ROW_H + 'px';
+      const rowEls = new Map();
+      const vals = new Float32Array(ROWS);
+      for (let i = 0; i < ROWS; i++) vals[i] = Math.round((0.2 + 0.75 * Math.abs(Math.sin(i * 0.013) + rnd() * 0.3)) * 100);
+
+      const sRows = document.getElementById('sRows');
+      const sScroll = document.getElementById('sScroll');
+
+      function renderRows() {
+        const scrollTop = vlist.scrollTop;
+        const viewH = vlist.clientHeight;
+        const start = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN);
+        const end = Math.min(ROWS, Math.ceil((scrollTop + viewH) / ROW_H) + OVERSCAN);
+
+        // 移除范围外行
+        for (const [i, el] of rowEls) {
+          if (i < start || i >= end) { el.remove(); rowEls.delete(i); }
+        }
+        // 添加范围内行
+        for (let i = start; i < end; i++) {
+          if (rowEls.has(i)) continue;
+          const el = document.createElement('div');
+          el.className = 'vrow';
+          el.style.transform = 'translateY(' + (i * ROW_H) + 'px)';
+          el.innerHTML =
+            '<span class="idx">#' + String(i).padStart(5, '0') + '</span>' +
+            '<span class="barwrap"><span class="bar" style="width:' + vals[i] + '%"></span></span>' +
+            '<span class="val">' + vals[i].toFixed(1) + '</span>';
+          // transform 定位需 absolute top:0
+          el.style.top = '0';
+          phantom.appendChild(el);
+          rowEls.set(i, el);
+        }
+        sRows.textContent = rowEls.size;
+        sScroll.textContent = Math.round(scrollTop) + ' px';
+      }
+      let vTicking = false;
+      vlist.addEventListener('scroll', () => {
+        if (!vTicking) {
+          vTicking = true;
+          requestAnimationFrame(() => { renderRows(); vTicking = false; });
+        }
+      });
+      window.addEventListener('resize', renderRows);
+      renderRows();
+    })();
+  </script>
+</body>
+
+</html>

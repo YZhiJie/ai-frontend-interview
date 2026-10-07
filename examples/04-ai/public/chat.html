@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI-I2 · fetch + ReadableStream 手写 SSE</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #1a1d28;
+    --panel-2: #232735;
+    --border: #2e3346;
+    --text: #e6e8f0;
+    --muted: #8b90a5;
+    --accent: #6366f1;
+    --accent-2: #8b5cf6;
+    --green: #34d399;
+    --red: #f87171;
+    --yellow: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    min-height: 100vh; display: flex; justify-content: center;
+  }
+  .app { width: 100%; max-width: 760px; padding: 24px 16px 40px; }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  header a { color: var(--accent); text-decoration: none; font-size: 13px; }
+
+  /* 状态条 */
+  .status-bar {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.connecting { background: var(--yellow); animation: pulse 1s infinite; }
+  .dot.streaming { background: var(--green); animation: pulse 1s infinite; }
+  .dot.done { background: var(--green); }
+  .dot.stopped { background: var(--red); }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+  #statusText { color: var(--muted); }
+
+  /* 聊天区 */
+  .chat {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px; min-height: 320px; margin-bottom: 14px;
+  }
+  .msg { display: flex; margin-bottom: 16px; }
+  .msg.user { justify-content: flex-end; }
+  .bubble {
+    max-width: 82%; padding: 10px 14px; border-radius: 14px;
+    line-height: 1.7; font-size: 15px; white-space: pre-wrap; word-break: break-word;
+  }
+  .msg.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.ai .bubble { background: var(--panel-2); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .cursor { display: inline-block; width: 7px; height: 16px; background: var(--accent-2);
+    margin-left: 2px; vertical-align: -2px; animation: blink 0.8s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* 输入区 */
+  .input-row { display: flex; gap: 10px; }
+  #promptInput {
+    flex: 1; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; color: var(--text); font-size: 14px; outline: none;
+  }
+  #promptInput:focus { border-color: var(--accent); }
+  button {
+    border: none; border-radius: 10px; padding: 0 18px; font-size: 14px;
+    cursor: pointer; color: #fff; background: var(--accent); transition: opacity .15s;
+  }
+  button:hover { opacity: .88; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  #stopBtn { background: var(--red); }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 10px; line-height: 1.6; }
+  code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>AI-I2 · 手写 SSE 流式聊天</h1>
+    <div class="sub">
+      fetch + ReadableStream + TextDecoder 分帧解析 · AbortController 中断 &nbsp;
+      <a href="/">← 返回导航</a>
+    </div>
+  </header>
+
+  <div class="status-bar">
+    <span class="dot" id="statusDot"></span>
+    <span id="statusText">空闲</span>
+  </div>
+
+  <div class="chat" id="chat">
+    <div class="msg ai">
+      <div class="bubble">你好，输入问题点「发送」，我会用打字机效果逐字回答（Mock）。生成过程中可点「停止生成」。</div>
+    </div>
+  </div>
+
+  <div class="input-row">
+    <input id="promptInput" placeholder="输入问题，例如：SSE 和 WebSocket 有什么区别？" />
+    <button id="sendBtn">发送</button>
+    <button id="stopBtn" disabled>停止生成</button>
+  </div>
+  <p class="hint">
+    关键点：<code>decoder.decode(value, {'{stream:true}'})</code> 防多字节汉字被 chunk 截断；
+    按 <code>\n\n</code> 切帧并保留半包到下一 chunk；<code>[DONE]</code> 终止整个循环；
+    <code>controller.abort()</code> 中断后用 <code>error.name === 'AbortError'</code> 区分用户主动停止。
+  </p>
+</div>
+
+<script>
+const chatEl = document.getElementById('chat');
+const inputEl = document.getElementById('promptInput');
+const sendBtn = document.getElementById('sendBtn');
+const stopBtn = document.getElementById('stopBtn');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+
+let abortController = null;
+
+function setStatus(state, text) {
+  statusDot.className = 'dot ' + state;
+  statusText.textContent = text;
+}
+
+function addMessage(role, text) {
+  const msg = document.createElement('div');
+  msg.className = 'msg ' + role;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+  msg.appendChild(bubble);
+  chatEl.appendChild(msg);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return bubble;
+}
+
+async function send() {
+  const prompt = inputEl.value.trim();
+  if (!prompt) return;
+
+  sendBtn.disabled = true;
+  stopBtn.disabled = false;
+  inputEl.value = '';
+  addMessage('user', prompt);
+
+  // AI 气泡：增量 append 文本节点，避免每帧整段重写
+  const bubble = addMessage('ai', '');
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  bubble.appendChild(cursor);
+
+  abortController = new AbortController();
+  setStatus('connecting', '连接中…（建立 SSE 长响应）');
+
+  try {
+    const resp = await fetch('/api/chat?prompt=' + encodeURIComponent(prompt), {
+      signal: abortController.signal,
+    });
+    if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status);
+
+    setStatus('streaming', '生成中…（逐帧接收 delta）');
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = ''; // 跨 chunk 帧缓冲区
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      // 关键 1：stream 模式解码，跨 chunk 的半个汉字不会变成乱码
+      buf += decoder.decode(value, { stream: true });
+
+      // 关键 2：SSE 以空行（\n\n）分隔事件，最后一段可能是半包，留到下一 chunk
+      const frames = buf.split('\n\n');
+      buf = frames.pop() ?? '';
+
+      for (const frame of frames) {
+        // 一帧内可能有多行（event:/id:/data:），这里只处理 data: 行
+        for (const line of frame.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue; // 跳过注释行（": connected"）与空行
+          const payload = trimmed.slice(5).trim();
+
+          // 关键 3：[DONE] 直接结束整个读取循环（不能只 break 内层循环）
+          if (payload === '[DONE]') {
+            setStatus('done', '已完成');
+            cursor.remove();
+            reader.cancel().catch(() => {});
+            resetButtons();
+            return;
+          }
+          // 关键 4：防御性 JSON.parse（心跳/非 JSON 负载不致中断整条流）
+          try {
+            const { delta } = JSON.parse(payload);
+            bubble.insertBefore(document.createTextNode(delta), cursor);
+            chatEl.scrollTop = chatEl.scrollHeight;
+          } catch { /* 忽略非 JSON 帧 */ }
+        }
+      }
+    }
+    cursor.remove();
+    setStatus('done', '已完成（流自然结束）');
+  } catch (err) {
+    cursor?.remove();
+    if (err.name === 'AbortError') {
+      // 用户主动停止：不是错误，UI 置为“已停止”
+      bubble.appendChild(document.createTextNode('（已停止生成）'));
+      setStatus('stopped', '已停止（AbortController 中断 fetch）');
+    } else {
+      bubble.appendChild(document.createTextNode('（出错了：' + err.message + '）'));
+      setStatus('stopped', '连接错误：' + err.message);
+    }
+  } finally {
+    resetButtons();
+  }
+}
+
+function resetButtons() {
+  sendBtn.disabled = false;
+  stopBtn.disabled = true;
+  abortController = null;
+}
+
+function stop() {
+  abortController?.abort(); // fetch 以 AbortError reject
+  stopBtn.disabled = true;
+}
+
+sendBtn.addEventListener('click', send);
+stopBtn.addEventListener('click', stop);
+inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+</script>
+</body>
+</html>

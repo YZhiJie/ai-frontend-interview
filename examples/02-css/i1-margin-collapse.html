@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS-I1 外边距合并</title>
+<style>
+  :root {
+    --bg: #0b1220; --card: #111a30;
+    --cyan: #22d3ee; --violet: #a78bfa; --orange: #f97316; --green: #34d399; --red: #f87171;
+    --text: #e2e8f0; --muted: #94a3b8;
+  }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    line-height: 1.6;
+  }
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(17,26,48,.95); border-bottom: 1px solid #1e293b;
+    backdrop-filter: blur(8px); padding: 10px 20px;
+  }
+  .topbar .tag {
+    display: inline-block; font-size: 12px; font-weight: 700; color: var(--bg);
+    background: var(--cyan); border-radius: 4px; padding: 1px 8px; margin-right: 10px;
+  }
+  .topbar .desc { font-size: 13px; color: var(--muted); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 76px 20px 48px; }
+  h2 { font-size: 16px; margin: 26px 0 10px; color: var(--cyan); }
+  .card {
+    background: var(--card); border: 1px solid #1e293b;
+    border-radius: 12px; padding: 18px; margin-bottom: 8px;
+  }
+  .card h3 { margin: 0 0 4px; font-size: 15px; }
+  .card .sub { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+
+  .stage {
+    background:
+      linear-gradient(0deg, transparent 24px, rgba(148,163,184,.08) 25px),
+      linear-gradient(90deg, transparent 24px, rgba(148,163,184,.08) 25px);
+    background-size: 25px 25px;
+    border-radius: 8px; padding: 30px 40px; position: relative; overflow: hidden;
+  }
+  .blk { width: 100%; height: 50px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #0b1220; }
+  .blk.top { background: var(--cyan); }
+  .blk.bottom { background: var(--violet); }
+  .gap-empty { width: 100%; /* 空块：无高度、无 border/padding */ }
+
+  /* margin 指示带 */
+  .mg-hint {
+    position: absolute; left: 8px; font-size: 11px; color: var(--orange);
+    font-family: ui-monospace, Menlo, Consolas, monospace; pointer-events: none; white-space: nowrap;
+  }
+  .measure-line {
+    position: absolute; right: 10px; font-size: 12px; font-weight: 700;
+    font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--green);
+    background: rgba(11,18,32,.85); border: 1px solid #1e293b; border-radius: 5px;
+    padding: 2px 8px; pointer-events: none; white-space: nowrap;
+  }
+
+  .controls { display: flex; gap: 18px; flex-wrap: wrap; margin: 14px 0 6px; align-items: center; }
+  .ctrl { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .ctrl input[type=range] { width: 170px; accent-color: var(--cyan); }
+  .ctrl .val { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--cyan); min-width: 52px; display: inline-block; }
+  button {
+    background: #1e293b; color: var(--text); border: 1px solid #334155;
+    border-radius: 6px; padding: 7px 13px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { border-color: var(--cyan); color: var(--cyan); }
+  button.on { background: var(--orange); border-color: var(--orange); color: #2a1402; font-weight: 700; }
+  .readout {
+    margin-top: 12px; font-size: 13px; background: #0e1626; border: 1px solid #1e293b;
+    border-radius: 8px; padding: 10px 14px;
+  }
+  .readout code { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--green); }
+  .readout .formula { color: var(--muted); }
+
+  /* 父子演示 */
+  .parent-demo {
+    background: rgba(249,115,22,.12); border: 0px solid var(--orange);
+    border-radius: 8px; padding: 0; position: relative;
+    transition: padding .2s, border .2s;
+  }
+  .parent-demo.flow { display: flow-root; }
+  .parent-demo.withpad { padding-top: 10px; }
+  .parent-demo.withborder { border-top-width: 10px; }
+  .parent-label {
+    position: absolute; top: 3px; left: 8px; font-size: 11px; color: var(--orange);
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .parent-demo.withpad .parent-label, .parent-demo.withborder .parent-label { display: none; }
+  .child-demo {
+    height: 50px; margin-top: 30px; background: var(--cyan); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; font-size: 13px;
+    font-weight: 700; color: #0b1220;
+  }
+  .spacer { height: 26px; background: transparent; }
+  .legend { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin: 0 5px -1px 10px; }
+  .preset-row { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="tag">对应 CSS-I1 外边距合并</span>
+  <span class="desc">滑块实时调整 margin（含负值），实测三种合并场景的真实间距，并一键演示三种阻止合并的手段</span>
+</div>
+
+<div class="wrap">
+
+  <!-- 场景一：相邻兄弟 -->
+  <h2>场景一：相邻兄弟合并</h2>
+  <div class="card">
+    <h3>.top 的 margin-bottom 与 .bottom 的 margin-top 相遇</h3>
+    <div class="sub">普通流中相邻块级盒的垂直 margin 不会相加，而是发生合并</div>
+    <div class="stage" id="stage1">
+      <div class="blk top" id="s1top">.top height:50px</div>
+      <div class="blk bottom" id="s1bottom">.bottom height:50px</div>
+      <div class="measure-line" id="s1measure"></div>
+    </div>
+    <div class="controls">
+      <div class="ctrl">top margin-bottom
+        <input type="range" id="s1m1" min="-40" max="60" value="30" step="5">
+        <span class="val" id="s1m1v">30px</span>
+      </div>
+      <div class="ctrl">bottom margin-top
+        <input type="range" id="s1m2" min="-40" max="60" value="20" step="5">
+        <span class="val" id="s1m2v">20px</span>
+      </div>
+      <div class="preset-row">
+        <button data-p="30,20">30 / 20（正正）</button>
+        <button data-p="-10,20">-10 / 20（正负）</button>
+        <button data-p="-30,-20">-30 / -20（负负）</button>
+      </div>
+    </div>
+    <div class="readout" id="s1readout"></div>
+  </div>
+
+  <!-- 场景二：空块 -->
+  <h2>场景二：空块合并（文档原题推演）</h2>
+  <div class="card">
+    <h3>.top / .gap（空块）/ .bottom</h3>
+    <div class="sub">高度为 0、无 border/padding 的空块，自身上下 margin 先合并，再继续与相邻 margin 融入同一组合并</div>
+    <div class="stage" id="stage2">
+      <div class="blk top" id="s2top">.top height:50px</div>
+      <div class="gap-empty" id="s2gap"></div>
+      <div class="blk bottom" id="s2bottom">.bottom height:50px</div>
+      <div class="measure-line" id="s2measure"></div>
+    </div>
+    <div class="controls">
+      <div class="ctrl">top margin-bottom
+        <input type="range" id="s2m1" min="-40" max="60" value="30" step="5">
+        <span class="val" id="s2m1v">30px</span>
+      </div>
+      <div class="ctrl">bottom margin-top
+        <input type="range" id="s2m2" min="-40" max="60" value="20" step="5">
+        <span class="val" id="s2m2v">20px</span>
+      </div>
+      <div class="preset-row">
+        <button data-p="30,20">文档原题：30 / 20</button>
+        <button data-p="-10,20">追问：-10 / 20</button>
+      </div>
+    </div>
+    <div class="readout" id="s2readout"></div>
+  </div>
+
+  <!-- 场景三：父子 -->
+  <h2>场景三：父子合并 ＋ 三种阻止手段</h2>
+  <div class="card">
+    <h3>父元素无 border / padding 分隔、也未建立 BFC</h3>
+    <div class="sub">子元素 .child 的 margin-top:30px 会「穿透」父元素，与父 margin 合并，父元素顶部与子元素之间没有内边距</div>
+    <div class="stage" id="stage3">
+      <div class="spacer"></div>
+      <div class="parent-demo" id="s3parent">
+        <span class="parent-label">.parent（橙色区域）</span>
+        <div class="child-demo" id="s3child">.child margin-top:30px</div>
+      </div>
+      <div class="spacer"></div>
+    </div>
+    <div class="controls">
+      <button data-fix="bfc">BFC 隔离（display: flow-root）</button>
+      <button data-fix="pad">padding 隔开（padding-top:10px）</button>
+      <button data-fix="border">边框隔开（border-top:10px）</button>
+      <button data-fix="reset" class="on">恢复合并</button>
+    </div>
+    <div class="readout" id="s3readout"></div>
+    <p class="legend">
+      阻止合并的其他手段：flex/grid 容器子项不合并；float / absolute / inline-block 脱离普通流也不参与合并。
+    </p>
+  </div>
+
+</div>
+
+<script>
+  function collapsed(m1, m2) {
+    // 正正取大；正负相加；负负取小（绝对值最大的负数）
+    if (m1 >= 0 && m2 >= 0) return { v: Math.max(m1, m2), rule: '正正取大 → max(' + m1 + ', ' + m2 + ')' };
+    if (m1 < 0 && m2 < 0) return { v: Math.min(m1, m2), rule: '负负取小（绝对值大者）→ min(' + m1 + ', ' + m2 + ')' };
+    return { v: m1 + m2, rule: '正负相加 → ' + m1 + ' + ' + m2 };
+  }
+
+  function setupSibling(prefix) {
+    const top = document.getElementById(prefix + 'top');
+    const bottom = document.getElementById(prefix + 'bottom');
+    const r1 = document.getElementById(prefix + 'm1');
+    const r2 = document.getElementById(prefix + 'm2');
+    const v1 = document.getElementById(prefix + 'm1v');
+    const v2 = document.getElementById(prefix + 'm2v');
+    const measure = document.getElementById(prefix + 'measure');
+    const readout = document.getElementById(prefix + 'readout');
+    const stage = document.getElementById('stage' + prefix[1]);
+
+    function update() {
+      const m1 = parseInt(r1.value, 10);
+      const m2 = parseInt(r2.value, 10);
+      top.style.marginBottom = m1 + 'px';
+      bottom.style.marginTop = m2 + 'px';
+      v1.textContent = m1 + 'px';
+      v2.textContent = m2 + 'px';
+
+      // 实测：bottom 顶边 - top 底边
+      const rt = top.getBoundingClientRect();
+      const rb = bottom.getBoundingClientRect();
+      const gap = Math.round(rb.top - rt.bottom);
+      const expect = collapsed(m1, m2);
+
+      // 测量标签放在两盒之间（相对 stage 定位）
+      const stageRect = stage.getBoundingClientRect();
+      const midY = (rt.bottom + rb.top) / 2 - stageRect.top;
+      measure.style.top = (midY - 11) + 'px';
+      measure.textContent = '实测间距 ' + gap + 'px';
+
+      const sum = m1 + m2;
+      readout.innerHTML =
+        '两 margin 代数和 = <code>' + sum + 'px</code>（若不合并应是这个值）　|　'
+        + '合并规则：<span class="formula">' + expect.rule + '</span>　|　'
+        + '<code style="font-size:14px">实际视觉间距 = ' + gap + 'px' + (prefix === 's2' ? '（空块的 0 也参与了同一组合并）' : '') + '</code>';
+    }
+
+    r1.addEventListener('input', update);
+    r2.addEventListener('input', update);
+
+    // 预设按钮
+    document.querySelectorAll('.card').forEach(card => {
+      const btns = card.querySelectorAll('.preset-row button');
+      if (!btns.length || card.querySelector('#' + prefix + 'm1') === null && !card.contains(r1)) return;
+    });
+    const hostCard = r1.closest('.card');
+    hostCard.querySelectorAll('.preset-row button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [a, b] = btn.dataset.p.split(',').map(Number);
+        r1.value = a; r2.value = b;
+        update();
+      });
+    });
+
+    update();
+    return update;
+  }
+
+  const up1 = setupSibling('s1');
+  const up2 = setupSibling('s2');
+
+  // 场景三：父子
+  const parent = document.getElementById('s3parent');
+  const child = document.getElementById('s3child');
+  const s3readout = document.getElementById('s3readout');
+  const fixBtns = document.querySelectorAll('[data-fix]');
+
+  function updateS3() {
+    const pr = parent.getBoundingClientRect();
+    const cr = child.getBoundingClientRect();
+    // 子顶边相对父 padding 边缘：合并态 = 0；border/padding 隔断后 = 10；BFC 后 = 30
+    const parentPadTop = parseFloat(getComputedStyle(parent).paddingTop) || 0;
+    const parentBorderTop = parseFloat(getComputedStyle(parent).borderTopWidth) || 0;
+    const innerTop = Math.round(cr.top - pr.top - parentBorderTop - parentPadTop);
+    const parentOuterOffset = Math.round(pr.top - parent.parentElement.getBoundingClientRect().top);
+
+    let mode = '合并中';
+    if (parent.classList.contains('flow')) mode = 'BFC 已建立（flow-root）：margin 被关在父元素内部';
+    else if (parent.classList.contains('withpad')) mode = 'padding-top 隔断：父子 margin 之间出现了 padding 分隔物';
+    else if (parent.classList.contains('withborder')) mode = 'border-top 隔断：父子 margin 之间出现了 border 分隔物';
+
+    s3readout.innerHTML =
+      '状态：<code>' + mode + '</code><br>'
+      + '子元素顶边到父「内容区上沿」的距离：<code>' + innerTop + 'px</code>'
+      + '（合并态为 0 → margin 穿透了父元素；'
+      + 'padding/border 隔断后为 10px；BFC 隔离后完整保留 30px）';
+  }
+
+  fixBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      fixBtns.forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      parent.classList.remove('flow', 'withpad', 'withborder');
+      const f = btn.dataset.fix;
+      if (f === 'bfc') parent.classList.add('flow');
+      if (f === 'pad') parent.classList.add('withpad');
+      if (f === 'border') parent.classList.add('withborder');
+      requestAnimationFrame(updateS3);
+    });
+  });
+
+  window.addEventListener('resize', () => { up1(); up2(); updateS3(); });
+  // 字体/样式稳定后再测一次
+  requestAnimationFrame(() => { up1(); up2(); updateS3(); });
+  updateS3();
+</script>
+</body>
+</html>

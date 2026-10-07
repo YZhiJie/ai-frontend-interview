@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIZ-I2 Three.js 基础 3D 场景</title>
+<style>
+  :root {
+    --bg: #0b1220; --card: #111a30;
+    --cyan: #22d3ee; --violet: #a78bfa; --orange: #f97316;
+    --text: #e2e8f0; --muted: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    line-height: 1.6;
+  }
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(17,26,48,.95); border-bottom: 1px solid #1e293b;
+    backdrop-filter: blur(8px); padding: 10px 20px;
+  }
+  .topbar .tag {
+    display: inline-block; font-size: 12px; font-weight: 700; color: var(--bg);
+    background: var(--cyan); border-radius: 4px; padding: 1px 8px; margin-right: 10px;
+  }
+  .topbar .desc { font-size: 13px; color: var(--muted); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 76px 20px 40px; }
+
+  .card { background: var(--card); border: 1px solid #1e293b; border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+  button {
+    background: #1e293b; color: var(--text); border: 1px solid #334155;
+    border-radius: 6px; padding: 8px 15px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { border-color: var(--cyan); color: var(--cyan); }
+  button.on { background: var(--cyan); border-color: var(--cyan); color: #06222a; font-weight: 700; }
+  .hint { font-size: 12.5px; color: var(--muted); }
+
+  #canvasHost {
+    position: relative; width: 100%; height: 460px;
+    border-radius: 10px; overflow: hidden; border: 1px solid #1e293b;
+    background: #05080f; cursor: grab;
+  }
+  #canvasHost:active { cursor: grabbing; }
+  #canvasHost canvas { display: block; }
+  .hud {
+    position: absolute; left: 12px; top: 10px; font-size: 11.5px;
+    color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace;
+    background: rgba(11,18,32,.7); border: 1px solid #1e293b; border-radius: 6px;
+    padding: 5px 9px; pointer-events: none;
+  }
+
+  h2 { font-size: 15px; color: var(--cyan); margin: 18px 0 8px; }
+  pre {
+    background: #0e1626; border: 1px solid #1e293b; border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; font-size: 12.5px; color: #cbd5e1;
+    font-family: ui-monospace, Menlo, Consolas, monospace; line-height: 1.55;
+  }
+  .roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+  .role { background: #0e1626; border: 1px solid #1e293b; border-radius: 8px; padding: 10px 12px; font-size: 12.5px; }
+  .role b { color: var(--cyan); display: block; margin-bottom: 2px; }
+  .role span { color: var(--muted); }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--cyan); }
+  .load-err { color: var(--orange); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="tag">对应 VIZ-I2 Three.js 基础场景</span>
+  <span class="desc">Scene / PerspectiveCamera / WebGLRenderer / Ambient+DirectionalLight / BoxGeometry Mesh + GridHelper；拖拽旋转（手写，无 OrbitControls）</span>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <div class="controls">
+      <button id="btnAuto" class="on">⏸ 暂停自动旋转</button>
+      <button id="btnReset">↺ 重置视角</button>
+      <span class="hint">鼠标在画面中按住拖拽 = 手动旋转立方体（r128 CDN 未含 OrbitControls，这里用极简手写控制代替）</span>
+    </div>
+    <div id="canvasHost">
+      <div class="hud" id="hud">rAF 渲染循环运行中…</div>
+    </div>
+  </div>
+
+  <h2>五类基本对象职责</h2>
+  <div class="card">
+    <div class="roles">
+      <div class="role"><b>Scene 场景</b><span>承载所有 3D 对象的根容器</span></div>
+      <div class="role"><b>PerspectiveCamera</b><span>由 fov / aspect / near / far 定义视锥体</span></div>
+      <div class="role"><b>WebGLRenderer</b><span>创建 WebGL 上下文，把场景逐帧绘制到 canvas</span></div>
+      <div class="role"><b>Light ×2</b><span>AmbientLight 环境底色 + DirectionalLight 平行光产生方向明暗</span></div>
+      <div class="role"><b>Mesh</b><span>BoxGeometry + MeshStandardMaterial（PBR，需光照才可见）</span></div>
+      <div class="role"><b>GridHelper</b><span>地面参考网格，体现空间与立方体悬浮位置</span></div>
+    </div>
+  </div>
+
+  <h2>关键代码（r128 UMD 全局 THREE 兼容写法）</h2>
+  <div class="card">
+    <pre>// 1-3. 场景 / 透视相机 / 渲染器
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 100);
+camera.position.set(3, 3, 5);
+camera.lookAt(0, 0, 0);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); // 限制 DPR，避免高分屏过度绘制
+renderer.setSize(w, h);
+host.appendChild(renderer.domElement);
+
+// 4. 环境光（0.4）+ 平行光（1.0）
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+const dir = new THREE.DirectionalLight(0xffffff, 1);
+dir.position.set(5, 8, 5);
+scene.add(dir);
+
+// 5. 绿色立方体 + 地面网格
+const cube = new THREE.Mesh(
+  new THREE.BoxGeometry(2, 2, 2),
+  new THREE.MeshStandardMaterial({ color: 0x2ecc71 })
+);
+scene.add(cube);
+scene.add(new THREE.GridHelper(12, 12, 0x334155, 0x1e293b));
+
+// 6. rAF 渲染循环（与刷新率对齐、页面隐藏自动暂停）
+(function animate() {
+  requestAnimationFrame(animate);
+  cube.rotation.y += 0.01;
+  renderer.render(scene, camera);
+})();
+
+// 7. resize 三件套：aspect → updateProjectionMatrix → setSize
+window.addEventListener('resize', () =&gt; {
+  camera.aspect = host.clientWidth / host.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(host.clientWidth, host.clientHeight);
+});</pre>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  const host = document.getElementById('canvasHost');
+  const hud = document.getElementById('hud');
+
+  if (typeof THREE === 'undefined') {
+    host.innerHTML = '<p class="load-err" style="padding:20px">⚠ Three.js r128 CDN 未加载成功（需联网）。</p>';
+    return;
+  }
+
+  let w = host.clientWidth, h = host.clientHeight;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x05080f);
+
+  const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 100);
+  camera.position.set(3.4, 2.8, 5);
+  camera.lookAt(0, 0, 0);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(w, h);
+  if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
+  host.appendChild(renderer.domElement);
+
+  // 光照
+  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  dirLight.position.set(5, 8, 5);
+  scene.add(dirLight);
+  const fill = new THREE.DirectionalLight(0x88aaff, 0.25);
+  fill.position.set(-5, 2, -4);
+  scene.add(fill);
+
+  // 立方体（文档：绿色 PBR 材质）
+  const cube = new THREE.Mesh(
+    new THREE.BoxGeometry(2, 2, 2),
+    new THREE.MeshStandardMaterial({ color: 0x2ecc71, roughness: 0.45, metalness: 0.1 })
+  );
+  cube.position.y = 1.2;
+  scene.add(cube);
+
+  // 地面网格
+  const grid = new THREE.GridHelper(12, 12, 0x334155, 0x1e293b);
+  grid.position.y = -1.0;
+  scene.add(grid);
+
+  // 极简手写旋转控制（替代 OrbitControls）
+  let autoRotate = true;
+  let dragging = false, lastX = 0, lastY = 0;
+  host.addEventListener('pointerdown', e => {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    host.setPointerCapture(e.pointerId);
+  });
+  host.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    cube.rotation.y += dx * 0.01;
+    cube.rotation.x = Math.max(-1.2, Math.min(1.2, cube.rotation.x + dy * 0.01));
+  });
+  host.addEventListener('pointerup', () => { dragging = false; });
+  host.addEventListener('pointercancel', () => { dragging = false; });
+
+  const btnAuto = document.getElementById('btnAuto');
+  btnAuto.addEventListener('click', () => {
+    autoRotate = !autoRotate;
+    btnAuto.classList.toggle('on', autoRotate);
+    btnAuto.textContent = autoRotate ? '⏸ 暂停自动旋转' : '▶ 开始自动旋转';
+  });
+  document.getElementById('btnReset').addEventListener('click', () => {
+    cube.rotation.set(0, 0, 0);
+    camera.position.set(3.4, 2.8, 5);
+    camera.lookAt(0, 0, 0);
+  });
+
+  // rAF 渲染循环 + FPS
+  let frames = 0, fpsT = performance.now(), fps = 0;
+  function animate(now) {
+    requestAnimationFrame(animate);
+    if (autoRotate && !dragging) {
+      cube.rotation.y += 0.01;
+    }
+    renderer.render(scene, camera);
+    frames++;
+    if (now - fpsT >= 500) {
+      fps = Math.round(frames * 1000 / (now - fpsT));
+      hud.textContent = 'rAF 渲染循环运行中…　FPS ' + fps;
+      frames = 0; fpsT = now;
+    }
+  }
+  requestAnimationFrame(animate);
+
+  // resize：容器尺寸 → aspect + updateProjectionMatrix + setSize
+  function onResize() {
+    w = host.clientWidth; h = host.clientHeight;
+    if (w === 0 || h === 0) return;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+  window.addEventListener('resize', onResize);
+})();
+</script>
+</body>
+</html>

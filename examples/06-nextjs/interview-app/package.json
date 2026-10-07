@@ -1,0 +1,27 @@
+{
+  "name": "interview-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI 前端面试题库 · Next.js 15 全栈演示工程（SSG/ISR/SSR、middleware、Route Handler、SSE AI、zustand+SWR）",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "swr": "^2.2.5",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": []
+  }
+}

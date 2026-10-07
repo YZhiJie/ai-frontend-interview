@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIZ-I1 D3 选择集与数据绑定</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #111a30;
+      --cyan: #22d3ee;
+      --violet: #a78bfa;
+      --orange: #f97316;
+      --green: #34d399;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+    }
+
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(17, 26, 48, .95);
+      border-bottom: 1px solid #1e293b;
+      backdrop-filter: blur(8px);
+      padding: 10px 20px;
+    }
+
+    .topbar .tag {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--bg);
+      background: var(--cyan);
+      border-radius: 4px;
+      padding: 1px 8px;
+      margin-right: 10px;
+    }
+
+    .topbar .desc {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .wrap {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 76px 20px 40px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    @media (max-width: 940px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    button {
+      background: #1e293b;
+      color: var(--text);
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 8px 15px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    #stage {
+      width: 100%;
+      height: 300px;
+      border-radius: 10px;
+      background:
+        linear-gradient(0deg, transparent 24px, rgba(148, 163, 184, .07) 25px),
+        linear-gradient(90deg, transparent 24px, rgba(148, 163, 184, .07) 25px);
+      background-size: 25px 25px;
+      border: 1px dashed #334155;
+    }
+
+    .counts {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+
+    .cnt {
+      flex: 1;
+      min-width: 86px;
+      text-align: center;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 8px 6px;
+      background: #0e1626;
+    }
+
+    .cnt .n {
+      font-size: 22px;
+      font-weight: 800;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+    }
+
+    .cnt .l {
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+
+    .cnt.enter .n {
+      color: var(--green);
+    }
+
+    .cnt.update .n {
+      color: var(--cyan);
+    }
+
+    .cnt.exit .n {
+      color: var(--orange);
+    }
+
+    .cnt.total .n {
+      color: var(--violet);
+    }
+
+    .logline {
+      font-size: 12.5px;
+      color: var(--muted);
+      margin-top: 10px;
+      min-height: 20px;
+    }
+
+    .logline b {
+      color: var(--text);
+    }
+
+    .phase {
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      border: 1px solid #1e293b;
+      background: #0e1626;
+      font-size: 12.5px;
+    }
+
+    .phase h4 {
+      margin: 0 0 3px;
+      font-size: 13px;
+    }
+
+    .phase.enter h4 {
+      color: var(--green);
+    }
+
+    .phase.update h4 {
+      color: var(--cyan);
+    }
+
+    .phase.exit h4 {
+      color: var(--orange);
+    }
+
+    .phase.merge h4 {
+      color: var(--violet);
+    }
+
+    .phase p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    h2 {
+      font-size: 15px;
+      color: var(--cyan);
+      margin: 18px 0 8px;
+    }
+
+    pre {
+      background: #0e1626;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-size: 12.5px;
+      color: #cbd5e1;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      line-height: 1.55;
+    }
+
+    .note {
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    code {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      color: var(--cyan);
+    }
+
+    .load-err {
+      color: var(--orange);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="topbar">
+    <span class="tag">对应 VIZ-I1 D3 数据绑定</span>
+    <span class="desc">enter / update / exit / merge 四阶段 General Update Pattern：增、乱序更新、减数据，观察圆点颜色与过渡动画</span>
+  </div>
+
+  <div class="wrap">
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <div class="controls">
+            <button id="btnAdd">➕ 增加数据（enter）</button>
+            <button id="btnShuffle">🔀 打乱顺序并改值（update）</button>
+            <button id="btnRemove">➖ 减少数据（exit）</button>
+            <button id="btnFive">文档追问：换成 5 个元素</button>
+            <button id="btnReset">↺ 重置为 [10,25,40]</button>
+          </div>
+          <svg id="stage"></svg>
+          <div class="counts">
+            <div class="cnt enter">
+              <div class="n" id="cEnter">3</div>
+              <div class="l">enter 新增</div>
+            </div>
+            <div class="cnt update">
+              <div class="n" id="cUpdate">0</div>
+              <div class="l">update 复用更新</div>
+            </div>
+            <div class="cnt exit">
+              <div class="n" id="cExit">0</div>
+              <div class="l">exit 移除</div>
+            </div>
+            <div class="cnt total">
+              <div class="n" id="cTotal">3</div>
+              <div class="l">当前节点总数</div>
+            </div>
+          </div>
+          <div class="logline" id="logline"><b>初始渲染：</b>页面无 circle，3 个数据全部进入 enter 集（对应文档示例）。</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="phase enter">
+          <h4>enter 集</h4>
+          <p>数据多、节点少 → <code>enter().append('circle')</code> 补建（绿色弹出）</p>
+        </div>
+        <div class="phase update">
+          <h4>update 集</h4>
+          <p>数据与节点都已存在（按 key 匹配）→ 更新 cx/r（青色高亮后归一）</p>
+        </div>
+        <div class="phase exit">
+          <h4>exit 集</h4>
+          <p>节点多、数据少 → 冗余节点必须显式 <code>remove()</code>（橙色缩小消失）</p>
+        </div>
+        <div class="phase merge">
+          <h4>merge 集</h4>
+          <p><code>.merge(update)</code> 合并 enter 与 update，统一设置属性，避免写两遍</p>
+        </div>
+        <div class="note" style="margin-top:6px">本演示使用 key 函数
+          <code>.data(arr, d =&gt; d.id)</code>：打乱顺序时节点按身份复用、移动到新位置，而不是按索引错位。
+        </div>
+      </div>
+    </div>
+
+    <h2>核心代码（General Update Pattern）</h2>
+    <div class="card">
+      <pre>const svg = d3.select('#svg');
+
+function render(data) {
+  // 1. 绑定：第二个参数是 key 函数，按 id 而非索引划分三集
+  const circles = svg.selectAll('circle').data(data, d =&gt; d.id);
+
+  // 2. exit：先标记成橙色，过渡缩小后必须 remove
+  circles.exit()
+    .attr('fill', '#f97316')
+    .transition().duration(500).attr('r', 0).attr('opacity', 0)
+    .remove();
+
+  // 3. enter：补建节点，r 从 0 弹出
+  const entered = circles.enter().append('circle')
+    .attr('cy', H / 2).attr('r', 0).attr('fill', '#34d399')
+    .attr('cx', (d, i) =&gt; 40 + i * 64)
+    .transition().duration(500).attr('r', d =&gt; d.v / 2);
+
+  // 4. merge：enter + update 统一设置位置 / 半径 / 颜色
+  entered.merge(circles)
+    .transition().duration(500)
+    .attr('cx', (d, i) =&gt; 40 + i * 64)
+    .attr('r', d =&gt; d.v / 2)
+    .attr('fill', '#a78bfa');   // 文档原例为 steelblue
+}</pre>
+    </div>
+
+    <h2>select/selectAll 与 datum/data</h2>
+    <div class="card">
+      <p class="note">
+        <code>select</code> 返回第一个匹配节点（容器级操作）；<code>selectAll</code> 返回全部匹配节点（批量绑定的基础）。<br>
+        <code>datum</code> 给每个节点绑同一个静态值，不产生 enter/exit；<code>data</code> 按索引或 key 函数逐一绑定数组并划分三集。<br>
+        文档追问：初始 3 个 circle 已在页面上时再传入 5 个元素 → 前 3 个进 update，多出 2 个进 enter（点上方按钮复现）。
+      </p>
+    </div>
+
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <script>
+    (function () {
+      const svgEl = document.getElementById('stage');
+      if (typeof d3 === 'undefined') {
+        svgEl.replaceWith(Object.assign(document.createElement('p'),
+          { className: 'load-err', textContent: '⚠ D3 CDN 未加载成功（需联网）。' }));
+        return;
+      }
+
+      const W = 820, H = 300;
+      const svg = d3.select('#stage')
+        .attr('viewBox', `0 0 ${W} ${H}`)
+        .attr('preserveAspectRatio', 'xMidYMid meet');
+
+      let nextId = 1;
+      const mk = v => ({ id: nextId++, v });
+      let data = [10, 25, 40].map(mk);
+
+      const cx = (d, i) => 46 + i * ((W - 92) / 11);
+
+      function setCounts(enterN, updateN, exitN) {
+        d3.select('#cEnter').textContent(enterN);
+        d3.select('#cUpdate').textContent(updateN);
+        d3.select('#cExit').textContent(exitN);
+        d3.select('#cTotal').textContent(data.length);
+      }
+      function log(html) { document.getElementById('logline').innerHTML = html; }
+
+      function render(enterN0, updateN0, exitN0) {
+        const sel = svg.selectAll('circle').data(data, d => d.id);
+
+        const exitN = sel.exit().size();
+        const updateN = sel.size();
+        const enterN = sel.enter().size();
+        setCounts(enterN0 != null ? enterN0 : enterN, updateN0 != null ? updateN0 : updateN, exitN0 != null ? exitN0 : exitN);
+
+        // exit：橙色 → 缩小消失 → 必须 remove
+        sel.exit()
+          .attr('fill', '#f97316')
+          .transition().duration(550).ease(d3.easeCubicIn)
+          .attr('r', 0).attr('opacity', 0.15)
+          .remove();
+
+        // update：已存在节点立刻标记为青色（随后与 enter 一起统一过渡到紫色）
+        sel.attr('fill', '#22d3ee');
+
+        // enter：数据多、节点少 → 补建，绿色、r 从 0 开始
+        const entered = sel.enter().append('circle')
+          .attr('cy', H / 2)
+          .attr('cx', (d, i) => cx(d, i))
+          .attr('r', 0)
+          .attr('fill', '#34d399')
+          .attr('stroke', '#06222a').attr('stroke-width', 1);
+
+        // merge：enter 集 + update 集合并，统一设置 cx/r/归一颜色（避免写两遍）
+        entered.merge(sel)
+          .transition().duration(550).ease(d3.easeCubicOut)
+          .attr('cy', H / 2)
+          .attr('cx', (d, i) => cx(d, i))
+          .attr('r', d => Math.max(5, d.v / 2))
+          .attr('fill', '#a78bfa');
+
+        // 标签：id
+        svg.selectAll('text.lbl').data(data, d => d.id).exit().remove();
+        const lbl = svg.selectAll('text.lbl').data(data, d => d.id);
+        lbl.enter().append('text').attr('class', 'lbl')
+          .attr('text-anchor', 'middle').attr('font-size', 10)
+          .attr('fill', '#0b1220').attr('font-weight', '700')
+          .attr('y', H / 2 + 3)
+          .merge(lbl)
+          .transition().duration(550)
+          .attr('x', (d, i) => cx(d, i))
+          .attr('y', d => H / 2 + Math.max(5, d.v / 2) + 16)
+          .attr('fill', '#94a3b8')
+          .text(d => '#' + d.id + ':' + d.v);
+      }
+
+      function init() {
+        data = [10, 25, 40].map(mk);
+        svg.selectAll('circle').remove();
+        svg.selectAll('text').remove();
+        render(3, 0, 0);
+        log('<b>初始渲染：</b>页面无 circle，3 个数据全部进入 enter 集，新增 3 个 circle，分别绑定 10、25、40（对应文档示例）。');
+      }
+
+      document.getElementById('btnAdd').addEventListener('click', () => {
+        const before = new Set(data.map(d => d.id));
+        const n = 1 + (Math.random() < 0.4 ? 1 : 0);
+        for (let i = 0; i < n; i++) data.push(mk(14 + Math.round(Math.random() * 50)));
+        const added = data.filter(d => !before.has(d.id)).length;
+        render(added, data.length - added, 0);
+        log('➕ <b>增加 ' + added + ' 个数据</b>：新数据进 <b style="color:#34d399">enter</b>（' + added + ' 个绿色弹出），其余 ' + (data.length - added) + ' 个进 update。');
+      });
+
+      document.getElementById('btnShuffle').addEventListener('click', () => {
+        // Fisher-Yates 乱序并随机改值
+        for (let i = data.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [data[i], data[j]] = [data[j], data[i]];
+        }
+        data.forEach(d => { d.v = 14 + Math.round(Math.random() * 50); });
+        render(0, data.length, 0);
+        log('🔀 <b>打乱顺序 + 修改数值</b>：key 函数按 id 匹配，' + data.length + ' 个节点全部进 <b style="color:#22d3ee">update</b>——节点复用、移动到新 cx，没有新建/删除（这就是传 key 的意义）。');
+      });
+
+      document.getElementById('btnRemove').addEventListener('click', () => {
+        const removed = Math.min(data.length, 1 + (Math.random() < 0.3 ? 1 : 0));
+        data.splice(data.length - removed, removed);
+        render(0, data.length, removed);
+        log('➖ <b>减少 ' + removed + ' 个数据</b>：多余节点进入 <b style="color:#f97316">exit</b>（' + removed + ' 个橙色缩小），必须显式 remove；剩余节点 update 重排位置。');
+      });
+
+      document.getElementById('btnFive').addEventListener('click', () => {
+        // 文档追问：换成 5 个元素（保留现有前 3 个身份，新增 2 个）
+        if (data.length < 3) init();
+        data = data.slice(0, 3);
+        while (data.length < 5) data.push(mk(18 + Math.round(Math.random() * 40)));
+        render(2, 3, 0);
+        log('📖 <b>文档追问：</b>数据换成长度 5 的数组 → 前 3 个进 <b style="color:#22d3ee">update</b>（属性更新），多出的 2 个进 <b style="color:#34d399">enter</b> 被 append。');
+      });
+
+      document.getElementById('btnReset').addEventListener('click', init);
+
+      init();
+    })();
+  </script>
+</body>
+
+</html>

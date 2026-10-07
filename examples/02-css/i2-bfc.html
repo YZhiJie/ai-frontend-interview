@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS-I2 BFC 块级格式化上下文</title>
+<style>
+  :root {
+    --bg: #0b1220; --card: #111a30;
+    --cyan: #22d3ee; --violet: #a78bfa; --orange: #f97316; --green: #34d399; --red: #f87371;
+    --text: #e2e8f0; --muted: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    line-height: 1.65;
+  }
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(17,26,48,.95); border-bottom: 1px solid #1e293b;
+    backdrop-filter: blur(8px); padding: 10px 20px;
+  }
+  .topbar .tag {
+    display: inline-block; font-size: 12px; font-weight: 700; color: var(--bg);
+    background: var(--cyan); border-radius: 4px; padding: 1px 8px; margin-right: 10px;
+  }
+  .topbar .desc { font-size: 13px; color: var(--muted); }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 76px 20px 48px; }
+
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tab {
+    background: #1e293b; color: var(--text); border: 1px solid #334155;
+    border-radius: 8px 8px 0 0; padding: 9px 16px; font-size: 13.5px; cursor: pointer;
+  }
+  .tab.on { background: var(--cyan); color: #06222a; border-color: var(--cyan); font-weight: 700; }
+
+  .card {
+    background: var(--card); border: 1px solid #1e293b;
+    border-radius: 0 12px 12px 12px; padding: 20px;
+  }
+  .panel { display: none; }
+  .panel.on { display: block; }
+  h3 { margin: 0 0 4px; font-size: 15.5px; }
+  .sub { font-size: 12.5px; color: var(--muted); margin-bottom: 16px; }
+
+  .stage {
+    background: #0e1626; border: 1px dashed #334155; border-radius: 10px;
+    padding: 18px; margin: 12px 0;
+  }
+  button.action {
+    background: #1e293b; color: var(--text); border: 1px solid #334155;
+    border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer;
+  }
+  button.action:hover { border-color: var(--cyan); color: var(--cyan); }
+  button.action.on { background: var(--orange); border-color: var(--orange); color: #2a1402; font-weight: 700; }
+
+  pre {
+    background: #0e1626; border: 1px solid #1e293b; border-radius: 8px;
+    padding: 12px 14px; overflow-x: auto; font-size: 12.5px; color: #cbd5e1;
+    font-family: ui-monospace, Menlo, Consolas, monospace; margin: 12px 0 0;
+  }
+  .explain {
+    font-size: 13px; background: rgba(34,211,238,.07); border: 1px solid rgba(34,211,238,.25);
+    border-radius: 8px; padding: 10px 14px; margin-top: 12px;
+  }
+  .badge { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 1px 7px; }
+  .badge.off { background: #7f1d1d; color: #fecaca; }
+  .badge.on2 { background: #065f46; color: #a7f3d0; }
+
+  /* 场景一：两栏 */
+  .two-col { border: 1px solid #475569; border-radius: 8px; padding: 0; overflow: hidden; resize: horizontal; min-width: 320px; max-width: 100%; }
+  .float-fig {
+    float: left; width: 130px; height: 96px; margin: 12px;
+    background: linear-gradient(135deg, var(--violet), #6d28d9);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #f5f3ff; text-align: center;
+  }
+  .col-text { padding: 12px 14px; font-size: 13.5px; }
+  .col-text.bfc { display: flow-root; background: rgba(34,211,238,.05); }
+  .drag-hint { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+
+  /* 场景二：清除浮动 */
+  .float-parent {
+    border: 2px dashed var(--orange); border-radius: 8px; padding: 0;
+    background: rgba(249,115,22,.06); transition: all .2s;
+  }
+  .float-parent.cleared { display: flow-root; padding: 10px; }
+  .float-kid {
+    float: left; width: 90px; height: 60px; margin: 0 10px 10px 0;
+    background: var(--cyan); border-radius: 6px; color: #06222a;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+  }
+  .float-kid:nth-child(2) { background: var(--violet); color: #f5f3ff; }
+  .float-kid:nth-child(3) { background: var(--green); }
+  .parent-info { font-size: 12.5px; color: var(--muted); margin-top: 8px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+  /* 场景三：margin */
+  .mc-parent { background: rgba(249,115,22,.12); border-radius: 8px; }
+  .mc-parent.bfc { display: flow-root; }
+  .mc-child {
+    height: 46px; margin: 26px 0; background: var(--cyan); border-radius: 6px;
+    color: #06222a; font-size: 12.5px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ref-list { font-size: 13px; color: var(--muted); }
+  .ref-list li { margin: 4px 0; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--cyan); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="tag">对应 CSS-I2 BFC</span>
+  <span class="desc">BFC 是独立渲染区域：内部布局不影响外部。三个经典场景一键切换「普通态 ↔ BFC 态」对比</span>
+</div>
+
+<div class="wrap">
+
+  <div class="tabs">
+    <button class="tab on" data-tab="t1">场景三预览：自适应两栏</button>
+    <button class="tab" data-tab="t2">场景一：清除浮动（高度塌陷）</button>
+    <button class="tab" data-tab="t3">场景二：阻止父子 margin 合并</button>
+  </div>
+
+  <div class="card">
+
+    <!-- 场景一：两栏 -->
+    <div class="panel on" id="t1">
+      <h3>浮动图文字环绕 → BFC 两栏自适应</h3>
+      <div class="sub">左栏 float: left 固定宽；右栏建立 BFC 后，BFC 区域不会与浮动盒重叠，自动收缩避让</div>
+      <div class="stage">
+        <div class="two-col" id="twoCol">
+          <div class="float-fig">float:left<br>固定 130px</div>
+          <div class="col-text" id="colText">
+            右侧文字内容。普通态下文字会环绕浮动图片排列——注意本行开头如何钻进图片下方。
+            继续多写几行可以看到：只有行盒子绕开浮动区，整个内容盒其实仍与浮动区域交叠。
+            点击下方按钮让本区域建立 BFC（display: flow-root），它的边框会立刻收缩避让，形成清爽的两栏布局；
+            拖动容器右下角还能验证右栏宽度自适应。BFC 的关键规则：<b>BFC 的区域不会与 float 盒重叠</b>。
+          </div>
+        </div>
+        <div class="drag-hint">提示：容器右下角可拖拽改宽度（resize: horizontal），观察自适应。</div>
+      </div>
+      <button class="action" id="btnCol">给右栏加 display: flow-root（建立 BFC）</button>
+      <span style="margin-left:10px;font-size:12.5px" id="colState"><span class="badge off">普通态：文字环绕</span></span>
+      <pre id="colCode">/* 普通态：文字环绕 */
+.figure { float: left; width: 130px; }
+.text   { /* 无 BFC，行盒绕开 float、盒本身仍交叠 */ }</pre>
+    </div>
+
+    <!-- 场景二：塌陷 -->
+    <div class="panel" id="t2">
+      <h3>父元素高度塌陷 → BFC 包裹浮动子元素</h3>
+      <div class="sub">子元素全部浮动后脱离普通流，父元素高度坍缩为 0；父元素建立 BFC 后会把浮动子元素包裹进来</div>
+      <div class="stage">
+        <div class="float-parent" id="floatParent">
+          <div class="float-kid">float 1</div>
+          <div class="float-kid">float 2</div>
+          <div class="float-kid">float 3</div>
+        </div>
+        <div class="parent-info" id="parentInfo"></div>
+      </div>
+      <button class="action" id="btnFloat">给父容器加 display: flow-root（首选，无副作用）</button>
+      <span style="margin-left:10px;font-size:12.5px" id="floatState"><span class="badge off">塌陷中：父高度 = 0</span></span>
+      <pre>/* 老式 hack */
+.parent { overflow: hidden; }      /* 可能裁剪内容 / 产生滚动容器 */
+/* 现代首选 */
+.parent { display: flow-root; }   /* 语义化建立 BFC，无副作用 */</pre>
+    </div>
+
+    <!-- 场景三：margin -->
+    <div class="panel" id="t3">
+      <h3>父子 margin 合并 → BFC 阻断合并</h3>
+      <div class="sub">普通态：子元素 margin 穿透父元素；父元素建立 BFC 后，margin 被隔离在父元素内部</div>
+      <div class="stage">
+        <div class="mc-parent" id="mcParent">
+          <div class="mc-child">.child　margin: 26px 0</div>
+        </div>
+      </div>
+      <button class="action" id="btnMc">给父容器加 display: flow-root</button>
+      <span style="margin-left:10px;font-size:12.5px" id="mcState"><span class="badge off">合并中：margin 穿透父元素</span></span>
+      <pre>/* 阻止父子合并：父元素建立 BFC */
+.parent { display: flow-root; }</pre>
+      <div class="explain">
+        <b>BFC 常见触发条件：</b>根元素 html；float 非 none；position 为 absolute/fixed；
+        display 为 flow-root / inline-block / table-cell / flex / grid；overflow 非 visible。
+        三个应用背后是同一原理：<b>隔离性</b>＋<b>BFC 不与浮动盒重叠</b>。
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // Tab 切换
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+      tab.classList.add('on');
+      document.getElementById(tab.dataset.tab).classList.add('on');
+    });
+  });
+
+  // 场景一
+  const colText = document.getElementById('colText');
+  const btnCol = document.getElementById('btnCol');
+  const colState = document.getElementById('colState');
+  const colCode = document.getElementById('colCode');
+  let colOn = false;
+  btnCol.addEventListener('click', () => {
+    colOn = !colOn;
+    colText.classList.toggle('bfc', colOn);
+    btnCol.classList.toggle('on', colOn);
+    btnCol.textContent = colOn ? '移除 flow-root，回到文字环绕' : '给右栏加 display: flow-root（建立 BFC）';
+    colState.innerHTML = colOn
+      ? '<span class="badge on2">BFC 态：两栏自适应</span>'
+      : '<span class="badge off">普通态：文字环绕</span>';
+    colCode.textContent = colOn
+      ? '/* BFC 态：右栏收缩避让，宽度自适应 */\n.figure { float: left; width: 130px; }\n.text   { display: flow-root; }'
+      : '/* 普通态：文字环绕 */\n.figure { float: left; width: 130px; }\n.text   { /* 无 BFC，行盒绕开 float、盒本身仍交叠 */ }';
+  });
+
+  // 场景二
+  const floatParent = document.getElementById('floatParent');
+  const btnFloat = document.getElementById('btnFloat');
+  const floatState = document.getElementById('floatState');
+  const parentInfo = document.getElementById('parentInfo');
+  function measureParent() {
+    const h = Math.round(floatParent.getBoundingClientRect().height);
+    parentInfo.textContent = '实测父容器高度：' + h + 'px' + (h === 0 ? '（浮动子元素脱离普通流，父元素无内容可撑高）' : '（BFC 把 3 个浮动子元素包裹进来）');
+  }
+  btnFloat.addEventListener('click', () => {
+    const on = floatParent.classList.toggle('cleared');
+    btnFloat.classList.toggle('on', on);
+    btnFloat.textContent = on ? '移除 flow-root，恢复塌陷' : '给父容器加 display: flow-root（首选，无副作用）';
+    floatState.innerHTML = on
+      ? '<span class="badge on2">已清除：高度包裹浮动子元素</span>'
+      : '<span class="badge off">塌陷中：父高度 = 0</span>';
+    requestAnimationFrame(measureParent);
+  });
+  measureParent();
+
+  // 场景三
+  const mcParent = document.getElementById('mcParent');
+  const btnMc = document.getElementById('btnMc');
+  const mcState = document.getElementById('mcState');
+  btnMc.addEventListener('click', () => {
+    const on = mcParent.classList.toggle('bfc');
+    btnMc.classList.toggle('on', on);
+    btnMc.textContent = on ? '移除 flow-root，恢复合并' : '给父容器加 display: flow-root';
+    mcState.innerHTML = on
+      ? '<span class="badge on2">已阻断：margin 关在 BFC 内部</span>'
+      : '<span class="badge off">合并中：margin 穿透父元素</span>';
+  });
+
+  window.addEventListener('resize', measureParent);
+</script>
+</body>
+</html>

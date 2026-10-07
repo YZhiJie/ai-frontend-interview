@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS-A2 渲染性能：left/top vs transform</title>
+<style>
+  :root {
+    --bg: #0b1220; --card: #111a30;
+    --cyan: #22d3ee; --violet: #a78bfa; --orange: #f97316; --green: #34d399; --red: #f87171;
+    --text: #e2e8f0; --muted: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    line-height: 1.6;
+  }
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(17,26,48,.95); border-bottom: 1px solid #1e293b;
+    backdrop-filter: blur(8px); padding: 10px 20px;
+  }
+  .topbar .tag {
+    display: inline-block; font-size: 12px; font-weight: 700; color: var(--bg);
+    background: var(--cyan); border-radius: 4px; padding: 1px 8px; margin-right: 10px;
+  }
+  .topbar .desc { font-size: 13px; color: var(--muted); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 74px 20px 40px; }
+
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 6px; align-items: center; }
+  button {
+    background: #1e293b; color: var(--text); border: 1px solid #334155;
+    border-radius: 6px; padding: 9px 15px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { border-color: var(--cyan); color: var(--cyan); }
+  button.run { background: var(--orange); border-color: var(--orange); color: #2a1402; font-weight: 700; }
+  label.ck { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  label.ck input { accent-color: var(--orange); }
+
+  .pipeline { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); margin: 6px 0 14px; flex-wrap: wrap; }
+  .pipe-step { border: 1px solid #334155; border-radius: 5px; padding: 2px 10px; }
+  .pipe-step.hot { background: rgba(248,113,113,.15); border-color: var(--red); color: var(--red); font-weight: 700; }
+  .pipe-step.gpu { background: rgba(52,211,153,.15); border-color: var(--green); color: var(--green); font-weight: 700; }
+  .arrow { color: #475569; }
+
+  .row-card { background: var(--card); border: 1px solid #1e293b; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+  .row-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .row-head h3 { margin: 0; font-size: 14.5px; }
+  .row-head .prop { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  .stats-mini { margin-left: auto; font-size: 12.5px; font-family: ui-monospace, Menlo, Consolas, monospace; display: flex; gap: 14px; flex-wrap: wrap; }
+  .stats-mini b { font-size: 15px; }
+  .good { color: var(--green); }
+  .bad { color: var(--red); }
+  .mid { color: var(--orange); }
+
+  .track {
+    position: relative; height: 130px; border-radius: 8px; overflow: hidden;
+    background:
+      linear-gradient(0deg, transparent 24px, rgba(148,163,184,.07) 25px),
+      linear-gradient(90deg, transparent 24px, rgba(148,163,184,.07) 25px);
+    background-size: 25px 25px;
+    border: 1px solid #1e293b;
+  }
+  .blk {
+    position: absolute; top: 0; left: 0; width: 26px; height: 26px; border-radius: 5px;
+    will-change: auto;
+  }
+  .track.a .blk { background: var(--red); }
+  .track.b .blk { background: var(--green); }
+  .heavy .blk { box-shadow: 0 0 14px 6px rgba(167,139,250,.35); }
+  .wc .blk { will-change: transform; }
+
+  .summary { font-size: 13px; background: #0e1626; border: 1px solid #1e293b; border-radius: 8px; padding: 12px 16px; margin-top: 6px; }
+  .layer-note { font-size: 12.5px; color: var(--orange); margin-top: 6px; min-height: 20px; }
+  h2 { font-size: 15px; color: var(--cyan); margin: 20px 0 8px; }
+  pre {
+    background: #0e1626; border: 1px solid #1e293b; border-radius: 8px;
+    padding: 12px 14px; overflow-x: auto; font-size: 12.5px; color: #cbd5e1;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="tag">对应 CSS-A2 渲染性能</span>
+  <span class="desc">各 50 个运动方块：A 排动画 left/top（每帧重排重绘）vs B 排 transform（只合成）；rAF 实测帧率对比</span>
+</div>
+
+<div class="wrap">
+
+  <div class="controls">
+    <button id="btnA">只跑 A 排（left/top）</button>
+    <button id="btnB" class="run">只跑 B 排（transform）</button>
+    <button id="btnBoth">两排同时跑（压力对比）</button>
+    <button id="btnStop">■ 停止</button>
+    <label class="ck"><input type="checkbox" id="ckHeavy"> 大模糊 box-shadow（追加大面积 paint 成本）</label>
+    <label class="ck"><input type="checkbox" id="ckWC"> will-change: transform（全部分层）</label>
+  </div>
+
+  <div class="pipeline">
+    <span class="pipe-step" id="pipeLayout">Layout 重排</span><span class="arrow">→</span>
+    <span class="pipe-step" id="pipePaint">Paint 重绘</span><span class="arrow">→</span>
+    <span class="pipe-step" id="pipeComp">Composite 合成</span>
+    <span style="margin-left:10px" id="pipeText">开销：重排 &gt; 重绘 &gt; 合成；transform/opacity 动画可跳过前两阶段</span>
+  </div>
+
+  <div class="row-card">
+    <div class="row-head">
+      <h3>A 排</h3><span class="prop bad">el.style.left / el.style.top（几何属性）</span>
+      <div class="stats-mini">
+        <span>实时 FPS <b id="aFps" class="mid">--</b></span>
+        <span>平均帧耗时 <b id="aMs" class="mid">--</b></span>
+        <span>长帧(&gt;20ms) <b id="aLong" class="mid">0</b></span>
+      </div>
+    </div>
+    <div class="track a" id="trackA"></div>
+  </div>
+
+  <div class="row-card">
+    <div class="row-head">
+      <h3>B 排</h3><span class="prop good">el.style.transform = translate(x,y)（合成属性）</span>
+      <div class="stats-mini">
+        <span>实时 FPS <b id="bFps" class="mid">--</b></span>
+        <span>平均帧耗时 <b id="bMs" class="mid">--</b></span>
+        <span>长帧(&gt;20ms) <b id="bLong" class="mid">0</b></span>
+      </div>
+    </div>
+    <div class="track b" id="trackB"></div>
+  </div>
+  <div class="layer-note" id="layerNote"></div>
+
+  <div class="summary" id="summary">
+    点击上方按钮分别运行两排（建议各跑 5 秒以上）。对比要点：A 排每帧触发 Layout + Paint + Composite；
+    B 排的 transform 由合成器线程处理，理论上只走 Composite 一阶段。机器性能越强绝对差越小，
+    可勾选「大模糊 box-shadow」放大 Paint 成本、「两排同时跑」加大压力后再比。
+  </div>
+
+  <h2>优化清单（文档答案要点）</h2>
+  <pre>/* 1. 动画只用合成属性 */
+@keyframes move { from { transform: translateX(0); } to { transform: translateX(300px); } }
+/* 避免 width/height/left/top 动画 */
+
+/* 2. will-change 是「契约」不是银弹：只给即将动画的少量元素，结束后移除 */
+.animating { will-change: transform; }   /* 几百个常驻 → 合成层爆炸：显存/纹理上传暴涨 */
+
+/* 3. 规避大面积 paint：降低 box-shadow 模糊半径、缩小绘制区、伪元素预渲染 */
+/* 4. content-visibility: auto 跳过屏外渲染；contain: strict 限制重排范围；虚拟列表减少节点 */
+/* 5. 量化：Performance 面板看 FPS 曲线；Paint flashing 下绿色重绘区应显著减少；目标稳定 60 FPS */</pre>
+
+</div>
+
+<script>
+  const N = 50;
+  const trackA = document.getElementById('trackA');
+  const trackB = document.getElementById('trackB');
+
+  function makeBlocks(track) {
+    const arr = [];
+    const trackW = track.clientWidth;
+    for (let i = 0; i < N; i++) {
+      const el = document.createElement('div');
+      el.className = 'blk';
+      track.appendChild(el);
+      arr.push({
+        el,
+        x: Math.random() * (trackW - 30),
+        y: Math.random() * 100,
+        vx: 1.2 + Math.random() * 2.2,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    return arr;
+  }
+  let blocksA = makeBlocks(trackA);
+  let blocksB = makeBlocks(trackB);
+
+  let mode = null;           // 'A' | 'B' | 'both'
+  let rafId = null;
+  let lastT = 0;
+
+  // 统计会话
+  function session() {
+    return { frames: [], long: 0, fpsInst: 0, fpsAcc: 0, fpsN: 0, fpsLast: 0 };
+  }
+  let stat = session();
+
+  const $ = id => document.getElementById(id);
+
+  function resetStats() {
+    stat = session();
+    $('aFps').textContent = $('bFps').textContent = '--';
+    $('aMs').textContent = $('bMs').textContent = '--';
+    $('aLong').textContent = $('bLong').textContent = '0';
+  }
+
+  function frame(t) {
+    rafId = requestAnimationFrame(frame);
+    if (!lastT) { lastT = t; return; }
+    const dt = t - lastT;
+    lastT = t;
+    if (dt <= 0 || dt > 250) return; // 切后台等异常间隔丢弃
+
+    const wA = trackA.clientWidth, wB = trackB.clientWidth;
+    const runA = mode === 'A' || mode === 'both';
+    const runB = mode === 'B' || mode === 'both';
+    const now = t / 1000;
+
+    if (runA) {
+      for (const o of blocksA) {
+        o.x += o.vx * (dt / 16.7);
+        if (o.x < 0 || o.x > wA - 26) o.vx *= -1;
+        o.x = Math.max(0, Math.min(wA - 26, o.x));
+        const yy = o.y + Math.sin(now * 2 + o.phase) * 14;
+        o.el.style.left = o.x + 'px';
+        o.el.style.top = yy + 'px';   // left/top：几何属性 → Layout
+      }
+    }
+    if (runB) {
+      for (const o of blocksB) {
+        o.x += o.vx * (dt / 16.7);
+        if (o.x < 0 || o.x > wB - 26) o.vx *= -1;
+        o.x = Math.max(0, Math.min(wB - 26, o.x));
+        const yy = o.y + Math.sin(now * 2 + o.phase) * 14;
+        o.el.style.transform = 'translate(' + o.x + 'px,' + yy + 'px)'; // 合成属性
+      }
+    }
+
+    // 统计
+    stat.frames.push(dt);
+    if (dt > 20) stat.long++;
+    stat.fpsAcc += 1000 / dt; stat.fpsN++;
+    if (t - stat.fpsLast > 300) {
+      const inst = Math.round(1000 / dt);
+      const avg = stat.fpsAcc / stat.fpsN;
+      const avgMs = stat.frames.reduce((s, x) => s + x, 0) / stat.frames.length;
+      const target = mode === 'B' ? { f: 'bFps', m: 'bMs', l: 'bLong' }
+                     : mode === 'A' ? { f: 'aFps', m: 'aMs', l: 'aLong' }
+                     : null;
+      if (target) {
+        const fEl = $(target.f), mEl = $(target.m);
+        fEl.textContent = inst;
+        fEl.className = inst >= 55 ? 'good' : inst >= 40 ? 'mid' : 'bad';
+        mEl.textContent = avgMs.toFixed(1) + ' ms';
+        mEl.className = avgMs <= 18 ? 'good' : avgMs <= 25 ? 'mid' : 'bad';
+        $(target.l).textContent = stat.long;
+        $(target.l).className = stat.long === 0 ? 'good' : 'bad';
+      } else {
+        // 同时跑：两排显示同一全局帧率
+        ['aFps', 'bFps'].forEach(id => {
+          $(id).textContent = inst;
+          $(id).className = inst >= 55 ? 'good' : inst >= 40 ? 'mid' : 'bad';
+        });
+        $('aMs').textContent = avgMs.toFixed(1) + ' ms';
+        $('bMs').textContent = avgMs.toFixed(1) + ' ms';
+        $('aLong').textContent = $('bLong').textContent = stat.long;
+      }
+      stat.fpsLast = t;
+    }
+  }
+
+  function start(m) {
+    stop(false);
+    mode = m;
+    resetStats();
+    lastT = 0;
+    rafId = requestAnimationFrame(frame);
+    // 管线高亮
+    const L = $('pipeLayout'), P = $('pipePaint'), C = $('pipeComp');
+    L.className = 'pipe-step'; P.className = 'pipe-step'; C.className = 'pipe-step';
+    if (m === 'A') { L.classList.add('hot'); P.classList.add('hot'); C.classList.add('gpu'); }
+    else if (m === 'B') { C.classList.add('gpu'); }
+    else { L.classList.add('hot'); P.classList.add('hot'); C.classList.add('gpu'); }
+  }
+  function stop(clear = true) {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null; mode = null;
+    if (clear) {
+      $('pipeLayout').className = 'pipe-step';
+      $('pipePaint').className = 'pipe-step';
+      $('pipeComp').className = 'pipe-step';
+    }
+  }
+
+  $('btnA').addEventListener('click', () => start('A'));
+  $('btnB').addEventListener('click', () => start('B'));
+  $('btnBoth').addEventListener('click', () => start('both'));
+  $('btnStop').addEventListener('click', () => stop());
+
+  // 大模糊 box-shadow
+  $('ckHeavy').addEventListener('change', e => {
+    trackA.classList.toggle('heavy', e.target.checked);
+    trackB.classList.toggle('heavy', e.target.checked);
+  });
+
+  // will-change 开关（合成层爆炸演示）
+  $('ckWC').addEventListener('change', e => {
+    trackA.classList.toggle('wc', e.target.checked);
+    trackB.classList.toggle('wc', e.target.checked);
+    $('layerNote').textContent = e.target.checked
+      ? '⚠ 当前 100 个方块全部声明 will-change: transform → 各自被提升为合成层（约 100 层）。每层都占显存、需上传纹理；低端机上这正是「层爆炸」崩帧的根因。正确姿势：只给即将动画的少量元素加，动画结束移除。'
+      : '';
+  });
+
+  window.addEventListener('resize', () => {
+    // 重建以避免越界
+    trackA.innerHTML = ''; trackB.innerHTML = '';
+    blocksA = makeBlocks(trackA); blocksB = makeBlocks(trackB);
+    if (mode) { const m = mode; stop(); start(m); }
+  });
+</script>
+</body>
+</html>

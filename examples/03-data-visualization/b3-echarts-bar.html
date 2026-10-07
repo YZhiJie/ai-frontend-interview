@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIZ-B3 ECharts 基础柱状图</title>
+<style>
+  :root {
+    --bg: #0b1220; --card: #111a30;
+    --cyan: #22d3ee; --violet: #a78bfa; --orange: #f97316;
+    --text: #e2e8f0; --muted: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    line-height: 1.6;
+  }
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(17,26,48,.95); border-bottom: 1px solid #1e293b;
+    backdrop-filter: blur(8px); padding: 10px 20px;
+  }
+  .topbar .tag {
+    display: inline-block; font-size: 12px; font-weight: 700; color: var(--bg);
+    background: var(--cyan); border-radius: 4px; padding: 1px 8px; margin-right: 10px;
+  }
+  .topbar .desc { font-size: 13px; color: var(--muted); }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 76px 20px 40px; }
+
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 14px; align-items: center; }
+  button {
+    background: #1e293b; color: var(--text); border: 1px solid #334155;
+    border-radius: 6px; padding: 8px 15px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { border-color: var(--cyan); color: var(--cyan); }
+  button.on { background: var(--cyan); border-color: var(--cyan); color: #06222a; font-weight: 700; }
+  .life { margin-left: auto; font-size: 12.5px; color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+  .card { background: var(--card); border: 1px solid #1e293b; border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  #chart { width: 100%; height: 420px; }
+  h2 { font-size: 15px; color: var(--cyan); margin: 20px 0 8px; }
+  pre {
+    background: #0e1626; border: 1px solid #1e293b; border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; font-size: 12.5px; color: #cbd5e1;
+    font-family: ui-monospace, Menlo, Consolas, monospace; line-height: 1.55;
+  }
+  .note { font-size: 12.5px; color: var(--muted); }
+  .note li { margin: 4px 0; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--cyan); }
+  .load-err { color: var(--orange); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="tag">对应 VIZ-B3 ECharts 柱状图</span>
+  <span class="desc">title / tooltip / legend / xAxis / yAxis / series 六大核心配置；setOption 声明式增量更新，可切月度 / 文档原题季度数据</span>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <div class="controls">
+      <button id="btnMonth" class="on">月度数据（12 个月）</button>
+      <button id="btnQuarter">文档原题：季度 Q1–Q4</button>
+      <button id="btnDispose">dispose() 后重新 init</button>
+      <span class="life" id="lifeState">实例状态：已 init（renderer: canvas）</span>
+    </div>
+    <div id="chart"></div>
+    <p class="note">交互：鼠标悬浮看 tooltip（trigger: 'axis' 整列触发）；点右上角图例可切换系列显隐（series.name 必须与 legend.data 一致）。</p>
+  </div>
+
+  <h2>完整 option（月度数据当前态）</h2>
+  <div class="card">
+    <pre id="codeBlock"></pre>
+  </div>
+
+  <h2>生命周期要点</h2>
+  <div class="card">
+    <ul class="note">
+      <li><code>echarts.init(dom, null, { renderer: 'canvas' })</code>：容器必须先有非零宽高；renderer 也可选 <code>'svg'</code>。</li>
+      <li><code>setOption</code> 是声明式、增量合并：数据更新只需再传变化字段，不必销毁重建。</li>
+      <li>窗口尺寸变化调用 <code>chart.resize()</code> 同步画布；页面卸载调用 <code>chart.dispose()</code> 防内存泄漏。</li>
+      <li><code>tooltip.trigger</code>：类目轴对比用 <code>'axis'</code>，单图形触发用 <code>'item'</code>。</li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- cdnjs 未镜像 5.5.1 实体文件（API 有元数据但文件 404），使用同 minor 最近可用版 5.5.0 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script>
+(function () {
+  const dom = document.getElementById('chart');
+  const codeBlock = document.getElementById('codeBlock');
+  const lifeState = document.getElementById('lifeState');
+
+  const DATASETS = {
+    month: {
+      title: '2025 年月度销售额',
+      cats: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+      vals: [86, 95, 120, 110, 135, 128, 142, 160, 152, 172, 185, 210]
+    },
+    quarter: {
+      title: '2025 年季度销售额',
+      cats: ['Q1', 'Q2', 'Q3', 'Q4'],
+      vals: [120, 200, 150, 80]
+    }
+  };
+
+  function buildOption(ds) {
+    return {
+      title: { text: ds.title, left: 'center', textStyle: { color: '#e2e8f0', fontSize: 16 } },
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['销售额'], right: 10, top: 6, textStyle: { color: '#94a3b8' } },
+      grid: { left: 58, right: 28, top: 56, bottom: 40 },
+      xAxis: {
+        type: 'category',
+        data: ds.cats,
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisLabel: { color: '#94a3b8' }
+      },
+      yAxis: {
+        type: 'value',
+        name: '金额（元）',
+        nameTextStyle: { color: '#94a3b8' },
+        axisLabel: { color: '#94a3b8' },
+        splitLine: { lineStyle: { color: '#1e293b' } }
+      },
+      series: [{
+        name: '销售额',
+        type: 'bar',
+        data: ds.vals,
+        itemStyle: {
+          color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [{ offset: 0, color: '#22d3ee' }, { offset: 1, color: '#a78bfa' }] },
+          borderRadius: [4, 4, 0, 0]
+        },
+        emphasis: { itemStyle: { color: '#f97316' } }
+      }]
+    };
+  }
+
+  function optionCode(ds) {
+    return `const chart = echarts.init(document.getElementById('chart'), null, { renderer: 'canvas' });
+
+chart.setOption({
+  title:   { text: '${ds.title}', left: 'center' },
+  tooltip: { trigger: 'axis' },                       // 类目轴对比：axis 整列触发
+  legend:  { data: ['销售额'], right: 10 },            // 与系列名对应才会联动
+  xAxis:   { type: 'category', data: ${JSON.stringify(ds.cats)} },
+  yAxis:   { type: 'value', name: '金额（元）' },
+  series:  [{ name: '销售额', type: 'bar', data: ${JSON.stringify(ds.vals)} }]
+});
+
+window.addEventListener('resize', () => chart.resize());
+// 页面卸载：chart.dispose();`;
+  }
+
+  let chart = null;
+  let current = 'month';
+
+  function init(datasetKey) {
+    if (typeof echarts === 'undefined') {
+      dom.innerHTML = '<p class="load-err">⚠ ECharts CDN 未加载成功（需联网）。核心 option 代码见下方代码块。</p>';
+      codeBlock.textContent = optionCode(DATASETS[datasetKey || 'month']);
+      return;
+    }
+    current = datasetKey || current;
+    chart = echarts.init(dom, null, { renderer: 'canvas' });
+    const opt = buildOption(DATASETS[current]);
+    chart.setOption(opt);
+    codeBlock.textContent = optionCode(DATASETS[current]);
+    lifeState.textContent = '实例状态：已 init（renderer: canvas）';
+  }
+
+  function switchData(key) {
+    current = key;
+    if (!chart) { init(key); return; }
+    const ds = DATASETS[key];
+    // setOption 增量合并：只传变化字段
+    chart.setOption({
+      title: { text: ds.title },
+      xAxis: { data: ds.cats },
+      series: [{ data: ds.vals }]
+    });
+    codeBlock.textContent = optionCode(ds);
+  }
+
+  document.getElementById('btnMonth').addEventListener('click', e => {
+    setActive(e.target); switchData('month');
+  });
+  document.getElementById('btnQuarter').addEventListener('click', e => {
+    setActive(e.target); switchData('quarter');
+  });
+  document.getElementById('btnDispose').addEventListener('click', () => {
+    if (chart) {
+      chart.dispose();
+      chart = null;
+      lifeState.textContent = '实例状态：已 dispose（画布已销毁，1.2s 后重新 init 演示）';
+      setTimeout(() => init(current), 1200);
+    } else {
+      init(current);
+    }
+  });
+  function setActive(btn) {
+    document.querySelectorAll('.controls button').forEach(b => {
+      if (b.id === 'btnDispose') return;
+      b.classList.toggle('on', b === btn);
+    });
+  }
+
+  window.addEventListener('resize', () => { if (chart) chart.resize(); });
+
+  init('month');
+})();
+</script>
+</body>
+</html>

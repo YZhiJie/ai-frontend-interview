@@ -1,0 +1,134 @@
+# CICD-A2｜多环境流水线 dev / test / staging / prod
+#
+# 分支模型（trunk-based 简化版）：
+#   feature/* → PR 只跑 CI（见 b3/i1 workflow），不部署
+#   合入 main → 自动部署 dev
+#   手动 promote → test → staging
+#   打 tag v*.*.* → 触发生产发布（生产 Environment 配置 required reviewers 审批）
+#
+# 核心原则：build once, deploy many —— 制品在 build job 构建一次，
+# 各环境只换配置（Environment Secrets/Variables），禁止每环境重新构建。
+name: Multi-Env Deploy
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*.*.*' # 仅语义化版本 tag 触发生产发布
+  workflow_dispatch: # 手动 promote / 回滚入口
+    inputs:
+      target_env:
+        description: 'Promote 到哪个环境'
+        required: true
+        type: choice
+        options: [test, staging]
+      version:
+        description: '回滚时指定历史版本（可留空）'
+        required: false
+
+jobs:
+  # ============ 唯一构建点：main push 或手动触发时构建并归档 ============
+  build:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - id: meta
+        run: echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ steps.meta.outputs.version }}
+          path: dist/
+          retention-days: 30 # 保留最近 N 个版本，供回滚（前端秒级切回旧目录）
+
+  # ============ dev：main 合入即部署 ============
+  deploy-dev:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: # GitHub Environments：变量/密钥按环境隔离，日志自动脱敏
+      name: dev
+      url: https://dev.example.com
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-${{ needs.build.outputs.version }}
+          path: dist/
+      # 公开变量（API 地址等）用 environment variables 注入构建/部署；
+      # 真密钥放 Environment Secrets —— 注意打进前端 bundle 的 key 等于公开，
+      # 敏感密钥必须放服务端，前端只通过网关签名 / 短时 token 间接使用。
+      - name: Deploy to dev CDN
+        run: |
+          echo "upload dist/ to dev CDN path /versions/${{ needs.build.outputs.version }}"
+          echo "switch dev entry to that version"
+
+  # ============ test / staging：手动 promote，同一份制品 ============
+  promote:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.target_env != ''
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.target_env }} # test 或 staging，各自可挂保护规则
+      url: https://${{ inputs.target_env }}.example.com
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-${{ needs.build.outputs.version }}
+          path: dist/
+      - name: Promote to ${{ inputs.target_env }}
+        run: |
+          echo "promote SAME artifact ${{ needs.build.outputs.version }} to ${{ inputs.target_env }}"
+          echo "staging 验收通过后，由 main 打 tag vX.Y.Z 触发生产发布"
+
+  # ============ prod：tag 触发 + 人工审批 ============
+  release-prod:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    # 关键卡点：GitHub 仓库 Settings → Environments → production
+    # 勾选 "Required reviewers" 并指定审批人；job 会自动挂起等待批准
+    environment:
+      name: production
+      url: https://www.example.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download immutable artifact for the tag
+        run: |
+          # 生产发布「不重新构建」：按 tag 从制品库下载对应版本。
+          # 跨 workflow run 取制品的常见做法（任选其一，按平台补全）：
+          #   1) gh run download -R <repo> -n dist-<version>（需 contents/actions: read）
+          #   2) 推送到对象存储制品库：aws s3 cp s3://artifacts/${TAG}/ ./dist/ --recursive
+          echo "download artifact of tag ${GITHUB_REF_NAME}, never rebuild"
+      - name: Deploy to production CDN
+        run: |
+          echo "1) upload /versions/${GITHUB_REF_NAME} (新旧版本目录共存)"
+          echo "2) 先传静态资源，最后切入口 HTML/manifest（避免 404 窗口期）"
+      - name: Write release record
+        run: |
+          echo "记录发布履历：版本=${GITHUB_REF_NAME} commit=$(git rev-parse HEAD) 时间=$(date -u) 操作人=${{ github.actor }}"
+
+  # ============ 失败回滚：回滚本身也是流水线，禁止 SSH 手工改文件 ============
+  rollback:
+    if: github.event_name == 'workflow_dispatch' && inputs.version != ''
+    runs-on: ubuntu-latest
+    environment:
+      name: production # 回滚同样需要审批
+    steps:
+      - name: Rollback static assets
+        run: |
+          # ① 静态资源层：入口切回历史版本目录，秒级生效
+          echo "switch entry HTML/manifest back to version ${{ inputs.version }}"
+      - name: Rollback edge config
+        run: |
+          # ② 边缘配置层：灰度规则 / 限流 / 路由按版本管理，一键还原
+          echo "restore edge config snapshot of ${{ inputs.version }}"

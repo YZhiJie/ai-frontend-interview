@@ -1,0 +1,17 @@
+{
+    "name": "a2-babel-plugin-demo",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "description": "JS-A2 配套示例：Babel parse → traverse visitor 去除 console.* → generate",
+    "dependencies": {
+        "@babel/generator": "^7.26.0",
+        "@babel/parser": "^7.26.0",
+        "@babel/traverse": "^7.26.0",
+        "@babel/types": "^7.26.0"
+    },
+    "devDependencies": {
+        "@types/babel__generator": "^7.6.8",
+        "@types/babel__traverse": "^7.20.6"
+    }
+}

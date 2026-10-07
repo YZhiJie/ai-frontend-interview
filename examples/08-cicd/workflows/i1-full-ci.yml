@@ -1,0 +1,111 @@
+# CICD-I1｜团队级完整 CI：lint → typecheck → test（Node 矩阵）→ build → artifact
+# 编排：lint/typecheck/test 无依赖并行快速失败；build 通过 needs 等三者全绿
+name: CI-Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # 缓存方案二选一，不要同时开：
+      #   方案 A（本文件采用）：actions/cache@v4 显式缓存 pnpm store
+      #   方案 B：actions/setup-node@v4 的 with.cache: pnpm（内置等价写法，更简洁）
+      # pnpm/action-setup@v4 本身只负责安装 pnpm，不缓存包；重复声明两套缓存只会浪费 IO。
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store # Ubuntu 上 pnpm store 默认路径
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck # 通常对应 tsc --noEmit
+
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # 某个 Node 版本失败不取消其余版本，便于定位兼容性问题
+      matrix:
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test -- --coverage
+      # 可选：把覆盖率报告上传为产物
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-node-${{ matrix.node }}
+          path: coverage/
+          retention-days: 7
+
+  build:
+    name: Build & Upload Artifact
+    needs: [lint, typecheck, test] # 三个 job 全部通过才执行：快速失败在前，高成本动作在后
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # build once, deploy many：后续部署 workflow 用 download-artifact 消费同一份产物
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/ # Next.js 自托管场景可改为 .next/ 与所需静态资源
+          retention-days: 7

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIZ-I3 ECharts 双 Y 轴柱线混合图</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #111a30;
+      --cyan: #22d3ee;
+      --violet: #a78bfa;
+      --orange: #f97316;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+    }
+
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(17, 26, 48, .95);
+      border-bottom: 1px solid #1e293b;
+      backdrop-filter: blur(8px);
+      padding: 10px 20px;
+    }
+
+    .topbar .tag {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--bg);
+      background: var(--cyan);
+      border-radius: 4px;
+      padding: 1px 8px;
+      margin-right: 10px;
+    }
+
+    .topbar .desc {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .wrap {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 76px 20px 40px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    #chart {
+      width: 100%;
+      height: 480px;
+    }
+
+    h2 {
+      font-size: 15px;
+      color: var(--cyan);
+      margin: 20px 0 8px;
+    }
+
+    pre {
+      background: #0e1626;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-size: 12.5px;
+      color: #cbd5e1;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      line-height: 1.55;
+    }
+
+    .note {
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    .note li {
+      margin: 4px 0;
+    }
+
+    code {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      color: var(--cyan);
+    }
+
+    .load-err {
+      color: var(--orange);
+      font-size: 13px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="topbar">
+    <span class="tag">对应 VIZ-I3 双 Y 轴混合图</span>
+    <span class="desc">月度经营看板：收入柱（左轴/万元）＋环比增长率折线（右轴/%）；自定义 tooltip formatter、双 dataZoom、图例联动</span>
+  </div>
+
+  <div class="wrap">
+
+    <div class="card">
+      <div id="chart"></div>
+      <p class="note">交互：悬浮看双系列同屏 tooltip（增长率保留 1 位小数并带 %）；底部滑块 / 滚轮触控板缩放筛选月份；点图例切换系列。</p>
+    </div>
+
+    <h2>完整 option（与文档答案一致）</h2>
+    <div class="card">
+      <pre>const months  = ['1月', '2月', '3月', '4月', '5月', '6月'];
+const revenue = [120, 135, 128, 160, 172, 190];      // 收入（万元）
+const growth  = [8.2, 12.5, -5.2, 25.0, 7.5, 10.5];  // 环比增长率（%）
+
+chart.setOption({
+  tooltip: {
+    trigger: 'axis',
+    axisPointer: { type: 'cross' },
+    // 自定义 formatter：params 是当前触发点的全部系列参数数组
+    formatter: (params) =&gt; params.map((p) =&gt; {
+      const isRate = p.seriesName === '环比增长率';
+      const value = isRate ? p.value.toFixed(1) : p.value;
+      return `${p.marker}${p.seriesName}：${value}${isRate ? '%' : ' 万元'}`;
+    }).join('&lt;br/&gt;')
+  },
+  legend: { data: ['收入', '环比增长率'] },
+  xAxis: { type: 'category', data: months },
+  yAxis: [
+    { type: 'value', name: '收入（万元）' },
+    { type: 'value', name: '增长率（%）', axisLabel: { formatter: '{value}%' }, splitLine: { show: false } }
+  ],
+  dataZoom: [
+    { type: 'slider', height: 20, bottom: 8 },  // 底部滑块
+    { type: 'inside' }                          // 滚轮/触控板缩放
+  ],
+  series: [
+    { name: '收入', type: 'bar', data: revenue },
+    { name: '环比增长率', type: 'line', yAxisIndex: 1, data: growth, smooth: true }
+  ]
+});</pre>
+    </div>
+
+    <h2>要点</h2>
+    <div class="card">
+      <ul class="note">
+        <li>双 y 轴以数组声明，折线系列通过 <code>yAxisIndex: 1</code> 挂到右轴；默认系列挂 0。</li>
+        <li>百分比轴关闭 <code>splitLine</code>，避免与左轴网格线重叠；两轴都标单位防止读数歧义。</li>
+        <li><code>tooltip.formatter</code> 接收 axis 触发点的系列参数数组，可统一拼 HTML 控制格式。</li>
+        <li>dataZoom 的 <code>slider</code> 与 <code>inside</code> 可同时启用；图例名与系列名一致即联动。</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- cdnjs 未镜像 5.5.1 实体文件（API 有元数据但文件 404），使用同 minor 最近可用版 5.5.0 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+  <script>
+    (function () {
+      const dom = document.getElementById('chart');
+      if (typeof echarts === 'undefined') {
+        dom.innerHTML = '<p class="load-err">⚠ ECharts CDN 未加载成功（需联网）。</p>';
+        return;
+      }
+
+      const chart = echarts.init(dom, null, { renderer: 'canvas' });
+
+      const months = ['1月', '2月', '3月', '4月', '5月', '6月'];
+      const revenue = [120, 135, 128, 160, 172, 190];
+      const growth = [8.2, 12.5, -5.2, 25.0, 7.5, 10.5];
+
+      chart.setOption({
+        backgroundColor: 'transparent',
+        color: ['#22d3ee', '#f97316'],
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: { type: 'cross' },
+          backgroundColor: '#0e1626',
+          borderColor: '#334155',
+          textStyle: { color: '#e2e8f0' },
+          formatter: (params) => params.map((p) => {
+            const isRate = p.seriesName === '环比增长率';
+            const value = isRate ? p.value.toFixed(1) : p.value;
+            return p.marker + p.seriesName + '：' + value + (isRate ? '%' : ' 万元');
+          }).join('<br/>')
+        },
+        legend: { data: ['收入', '环比增长率'], top: 6, textStyle: { color: '#94a3b8' } },
+        grid: { left: 62, right: 62, top: 48, bottom: 64 },
+        xAxis: {
+          type: 'category', data: months,
+          axisLine: { lineStyle: { color: '#334155' } },
+          axisLabel: { color: '#94a3b8' }
+        },
+        yAxis: [
+          {
+            type: 'value', name: '收入（万元）',
+            nameTextStyle: { color: '#94a3b8' },
+            axisLabel: { color: '#94a3b8' },
+            splitLine: { lineStyle: { color: '#1e293b' } }
+          },
+          {
+            type: 'value', name: '增长率（%）',
+            nameTextStyle: { color: '#94a3b8' },
+            axisLabel: { color: '#94a3b8', formatter: '{value}%' },
+            splitLine: { show: false }
+          }
+        ],
+        dataZoom: [
+          {
+            type: 'slider', height: 20, bottom: 14,
+            textStyle: { color: '#94a3b8' }, borderColor: '#334155',
+            fillerColor: 'rgba(167,139,250,.2)', handleStyle: { color: '#a78bfa' }
+          },
+          { type: 'inside' }
+        ],
+        series: [
+          {
+            name: '收入', type: 'bar', data: revenue,
+            itemStyle: {
+              borderRadius: [4, 4, 0, 0],
+              color: {
+                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [{ offset: 0, color: '#22d3ee' }, { offset: 1, color: '#0e7490' }]
+              }
+            }
+          },
+          {
+            name: '环比增长率', type: 'line', yAxisIndex: 1, data: growth, smooth: true,
+            symbolSize: 8, lineStyle: { width: 3, color: '#f97316' },
+            itemStyle: { color: '#f97316' }
+          }
+        ]
+      });
+
+      window.addEventListener('resize', () => chart.resize());
+    })();
+  </script>
+</body>
+
+</html>

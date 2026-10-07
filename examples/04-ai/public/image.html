@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI-I3/A2 · 文生图异步任务 + 轮询重试</title>
+<style>
+  :root {
+    --bg: #0f1117; --panel: #1a1d28; --panel-2: #232735; --border: #2e3346;
+    --text: #e6e8f0; --muted: #8b90a5; --accent: #6366f1; --green: #34d399;
+    --red: #f87171; --yellow: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    min-height: 100vh; display: flex; justify-content: center;
+  }
+  .app { width: 100%; max-width: 760px; padding: 24px 16px 40px; }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  header a { color: var(--accent); text-decoration: none; font-size: 13px; }
+
+  .input-row { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  #promptInput {
+    flex: 1; min-width: 240px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; color: var(--text); font-size: 14px; outline: none;
+  }
+  #promptInput:focus { border-color: var(--accent); }
+  button {
+    border: none; border-radius: 10px; padding: 0 18px; font-size: 14px;
+    cursor: pointer; color: #fff; transition: opacity .15s;
+  }
+  button:hover { opacity: .88; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  #submitBtn { background: var(--accent); }
+  #failBtn { background: #b45309; }
+  #retryBtn { background: var(--green); color: #06281d; }
+
+  /* 任务卡：常驻页面而非弹窗（AI-A2 要点） */
+  .task-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px; display: none;
+  }
+  .task-card.show { display: block; }
+  .task-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .task-stage { font-size: 14px; font-weight: 600; }
+  .task-jobid { color: var(--muted); font-size: 12px; font-family: ui-monospace, monospace; }
+
+  .stage-row { display: flex; gap: 8px; margin-bottom: 14px; font-size: 12px; color: var(--muted); }
+  .stage-pill { padding: 3px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); }
+  .stage-pill.active { color: var(--text); border-color: var(--yellow); }
+  .stage-pill.done { color: var(--green); border-color: var(--green); }
+
+  /* 固定宽高比骨架，防止布局跳动（CLS） */
+  .canvas-wrap {
+    position: relative; width: 100%; aspect-ratio: 1 / 1; max-width: 420px;
+    margin: 0 auto; border-radius: 12px; overflow: hidden; background: var(--panel-2);
+    border: 1px solid var(--border);
+  }
+  .skeleton {
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, #232735 25%, #2d3244 50%, #232735 75%);
+    background-size: 200% 100%; animation: shimmer 1.3s infinite;
+    display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .canvas-wrap img { width: 100%; height: 100%; display: block; }
+
+  .progress-row { margin-top: 14px; }
+  .progress-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .progress-track { height: 8px; border-radius: 999px; background: var(--panel-2); overflow: hidden; }
+  .progress-bar { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--accent), #a855f7); transition: width .3s; }
+
+  .error-box {
+    margin-top: 14px; padding: 12px 14px; border-radius: 10px;
+    background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248,113,113,.35);
+    color: #fca5a5; font-size: 13px; line-height: 1.6; display: none;
+  }
+  .error-box.show { display: block; }
+  .error-box button { margin-top: 10px; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 14px; line-height: 1.7; }
+  code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>AI-I3 / A2 · 文生图：异步任务 + 轮询 + 失败重试</h1>
+    <div class="sub">提交 → jobId → 300ms 轮询进度 → 成图（Mock，约 3 秒）&nbsp;
+      <a href="/">← 返回导航</a>
+    </div>
+  </header>
+
+  <div class="input-row">
+    <input id="promptInput" placeholder="描述你想生成的画面，例如：月光下的山间湖泊，水彩风格" />
+    <button id="submitBtn">生成图片</button>
+    <button id="failBtn">模拟一次失败</button>
+  </div>
+
+  <div class="task-card" id="taskCard">
+    <div class="task-head">
+      <span class="task-stage" id="taskStage">排队中</span>
+      <span class="task-jobid" id="jobIdText"></span>
+    </div>
+    <div class="stage-row">
+      <span class="stage-pill" id="pillQueued">排队中</span>
+      <span class="stage-pill" id="pillRunning">生成中</span>
+      <span class="stage-pill" id="pillDone">完成</span>
+    </div>
+
+    <div class="canvas-wrap" id="canvasWrap">
+      <div class="skeleton" id="skeleton">任务排队中…</div>
+    </div>
+
+    <div class="progress-row">
+      <div class="progress-meta">
+        <span id="progressLabel">等待调度</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
+    </div>
+
+    <div class="error-box" id="errorBox">
+      <div id="errorText"></div>
+      <button id="retryBtn">重试</button>
+    </div>
+  </div>
+
+  <p class="hint">
+    约定：prompt 含「失败」二字时任务在生成阶段返回 500（模拟服务繁忙这类可重试错误）。
+    点「重试」会带 <code>retry:true</code> 重新提交一个<strong>新任务</strong>——真实项目中重试也应重新拿 taskId，
+    并配合指数退避、次数上限与离开页面时 <code>clearInterval</code> 清理定时器。
+  </p>
+</div>
+
+<script>
+const inputEl = document.getElementById('promptInput');
+const submitBtn = document.getElementById('submitBtn');
+const failBtn = document.getElementById('failBtn');
+const taskCard = document.getElementById('taskCard');
+const taskStage = document.getElementById('taskStage');
+const jobIdText = document.getElementById('jobIdText');
+const pillQueued = document.getElementById('pillQueued');
+const pillRunning = document.getElementById('pillRunning');
+const pillDone = document.getElementById('pillDone');
+const canvasWrap = document.getElementById('canvasWrap');
+const skeleton = document.getElementById('skeleton');
+const progressBar = document.getElementById('progressBar');
+const progressPct = document.getElementById('progressPct');
+const progressLabel = document.getElementById('progressLabel');
+const errorBox = document.getElementById('errorBox');
+const errorText = document.getElementById('errorText');
+const retryBtn = document.getElementById('retryBtn');
+
+let pollTimer = null;
+let lastPrompt = '';      // 供重试使用
+let lastFailDemo = false; // 重试时去掉失败标记
+
+function resetCard() {
+  clearInterval(pollTimer);
+  pollTimer = null;
+  errorBox.classList.remove('show');
+  canvasWrap.querySelectorAll('img').forEach((img) => img.remove());
+  skeleton.style.display = 'flex';
+  progressBar.style.width = '0%';
+  progressPct.textContent = '0%';
+  pillQueued.className = 'stage-pill';
+  pillRunning.className = 'stage-pill';
+  pillDone.className = 'stage-pill';
+}
+
+// 1) 提交任务，立即拿到 jobId（绝不用一条长请求硬等结果）
+async function createImage(prompt, isRetry) {
+  resetCard();
+  taskCard.classList.add('show');
+  taskStage.textContent = '提交中';
+  jobIdText.textContent = '';
+
+  const body = { prompt };
+  // 重试时：把失败演示标记改写为正常 prompt，并带 retry:true
+  const finalPrompt = isRetry ? prompt.replace(/失败/g, '重试') : prompt;
+  if (isRetry) body.prompt = finalPrompt;
+  if (isRetry) body.retry = true;
+
+  try {
+    const resp = await fetch('/api/image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const json = await resp.json();
+    if (!resp.ok) throw new Error(json.message || ('HTTP ' + resp.status));
+    startPolling(json.data.jobId, finalPrompt);
+  } catch (err) {
+    showError('提交任务失败：' + err.message, finalPrompt);
+  }
+}
+
+// 2) 轮询进度：本 demo 固定 300ms；真实项目建议 1s 起步 + 指数退避 + 次数上限
+function startPolling(jobId, prompt) {
+  jobIdText.textContent = 'job: ' + jobId.slice(0, 8);
+  taskStage.textContent = '排队中';
+  pillQueued.classList.add('active');
+  progressLabel.textContent = '任务已提交，等待调度';
+
+  pollTimer = setInterval(async () => {
+    let json;
+    try {
+      const resp = await fetch('/api/image/status?id=' + encodeURIComponent(jobId));
+      json = await resp.json();
+      if (!resp.ok) {
+        // 任务失败（服务端以 500 返回 failed 状态）
+        throw new Error(json.message || '生成失败');
+      }
+    } catch (err) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+      showError(err.message, prompt);
+      return;
+    }
+
+    const { status, progress, dataUrl } = json.data;
+    progressBar.style.width = progress + '%';
+    progressPct.textContent = progress + '%';
+
+    if (status === 'queued') {
+      taskStage.textContent = '排队中';
+      pillQueued.classList.add('active');
+      skeleton.textContent = '前面还有任务排队中…';
+      progressLabel.textContent = '排队中（queued）';
+    } else if (status === 'running') {
+      taskStage.textContent = '生成中';
+      pillQueued.className = 'stage-pill done';
+      pillRunning.classList.add('active');
+      skeleton.textContent = '模型正在绘制… ' + progress + '%';
+      progressLabel.textContent = '生成中（running）';
+    } else if (status === 'done') {
+      clearInterval(pollTimer);
+      pollTimer = null;
+      taskStage.textContent = '已完成';
+      pillRunning.className = 'stage-pill done';
+      pillDone.classList.add('done');
+      progressLabel.textContent = '完成（done）';
+      skeleton.style.display = 'none';
+      // 3) 展示成图：demo 是 base64 dataUrl；生产环境主流是 CDN URL（可缓存、载荷小）
+      const img = new Image();
+      img.src = dataUrl;
+      img.alt = prompt;
+      canvasWrap.appendChild(img);
+    }
+  }, 300);
+}
+
+function showError(message, prompt) {
+  taskStage.textContent = '生成失败';
+  skeleton.textContent = '生成失败';
+  progressLabel.textContent = '任务失败';
+  errorText.textContent = message + '（可点击下方按钮重新提交一个新任务）';
+  errorBox.classList.add('show');
+  lastPrompt = prompt;
+}
+
+submitBtn.addEventListener('click', () => {
+  const prompt = inputEl.value.trim() || '一只穿着宇航服的猫，数字插画';
+  lastFailDemo = false;
+  createImage(prompt, false);
+});
+
+failBtn.addEventListener('click', () => {
+  // prompt 含“失败”二字，服务端会让任务在 running 阶段失败
+  const base = inputEl.value.trim() || '一幅画';
+  lastFailDemo = true;
+  createImage(base + '（失败演示）', false);
+});
+
+retryBtn.addEventListener('click', () => {
+  createImage(lastPrompt, true);
+});
+
+// 离开页面清理轮询，避免组件卸载后定时器继续发请求
+window.addEventListener('beforeunload', () => clearInterval(pollTimer));
+</script>
+</body>
+</html>

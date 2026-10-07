@@ -1,0 +1,86 @@
+# =============================================================================
+# CICD-A1｜CNB（Cloud Native Build，云原生构建）理念示例（注释化样例）
+#
+# 本文件不是可直接运行的 GitHub Actions workflow，而是用注释讲清 CNB 的四要素：
+#   ① pipeline as code：流水线与代码同仓版本化、走 PR 评审、公共任务模板化
+#   ② 云端缓存分层：pnpm store（随 lockfile 哈希）、编译缓存（随源码指纹）、
+#      容器镜像层缓存；按分支隔离命名空间防投毒
+#   ③ 制品库不可变：构建产物推送制品库打唯一摘要，部署只允许从制品库拉取
+#      —— 测过的就是发布的，回滚 = 重新部署历史制品而非重新构建
+#   ④ DAG 原子任务并行：任务间只声明依赖，无依赖自动并行，容器级环境即取即用
+#
+# 与 GitHub Actions 的理念差异：
+#   环境模型：Actions 一条 job 绑一个 runner；CNB 把任务下沉为容器级原子单元，
+#            每个 task 声明自己的镜像（image: node:20）
+#   缓存模型：Actions 靠显式 actions/cache step；CNB 把缓存做成平台一等公民
+#   并发模型：Actions 是 job 级并行；CNB 是 DAG 细粒度任务级并行
+#   本质相通：声明式、版本化、可复现；Actions 用 job 拆分 + 精细缓存也能逼近
+#
+# 下面给出接近腾讯 CNB（.cnb.yml）风格的思路示意，字段以平台文档为准。
+# =============================================================================
+
+# main:                        # 以分支为维度声明流水线
+#   push:                      # main 分支 push 触发
+#     - stage: check           # 阶段一：无依赖任务自动并行（DAG）
+#       tasks:
+#         - name: lint
+#           image: node:20     # 原子任务声明自己的容器环境，即取即用
+#           script:
+#             - corepack enable
+#             - pnpm install --frozen-lockfile
+#             - pnpm lint
+#           cache:
+#             # 缓存①：包管理 store，key 跟 lockfile 哈希
+#             pnpm-store:
+#               path: /root/.local/share/pnpm/store
+#               key: ${hashFiles('pnpm-lock.yaml')}
+#         - name: typecheck
+#           image: node:20
+#           script:
+#             - pnpm install --frozen-lockfile
+#             - pnpm typecheck
+#           cache:
+#             pnpm-store:
+#               path: /root/.local/share/pnpm/store
+#               key: ${hashFiles('pnpm-lock.yaml')}
+#         - name: test
+#           image: node:20
+#           script:
+#             - pnpm install --frozen-lockfile
+#             - pnpm test -- --coverage
+#           cache:
+#             pnpm-store:
+#               key: ${hashFiles('pnpm-lock.yaml')}
+#
+#     - stage: build           # 阶段二：check 全过后执行
+#       tasks:
+#         - name: build
+#           image: node:20
+#           script:
+#             - pnpm install --frozen-lockfile
+#             - pnpm build
+#           cache:
+#             pnpm-store:
+#               key: ${hashFiles('pnpm-lock.yaml')}
+#             # 缓存②：编译中间产物（turbopack/webpack 持久缓存），
+#             # key 跟 分支 + 源码指纹；PR 缓存不投毒主干（命名空间隔离）
+#             build-cache:
+#               path: .next/cache
+#               key: ${branch}-${hashFiles('src/**')}
+#               scope: branch   # 主干缓存只读共享，PR 使用独立命名空间
+#         - name: upload
+#           image: cnb/artifacts:latest
+#           depends-on: build   # 只声明依赖，调度器自动编排
+#           script:
+#             # ③ 产物推制品库并打唯一版本/摘要，不可变
+#             - cnb-artifact push dist/ --name webapp --tag ${commitSha}
+#
+# tag:
+#   v*.*.*:                    # 语义化 tag：从制品库「拉取」而非重新构建
+#     - stage: release
+#       tasks:
+#         - name: deploy-prod
+#           image: cnb/deploy:latest
+#           script:
+#             - cnb-artifact pull webapp:${commitSha}   # 只部署测过的制品
+#             - cnb-deploy cdn --app webapp --version ${tag}

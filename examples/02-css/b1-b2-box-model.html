@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS-B1/B2 盒模型与尺寸计算</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --card: #111a30;
+    --cyan: #22d3ee;
+    --violet: #a78bfa;
+    --orange: #f97316;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    line-height: 1.6;
+  }
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(17, 26, 48, .95);
+    border-bottom: 1px solid #1e293b;
+    backdrop-filter: blur(8px);
+    padding: 10px 20px;
+  }
+  .topbar .tag {
+    display: inline-block; font-size: 12px; font-weight: 700;
+    color: var(--bg); background: var(--cyan);
+    border-radius: 4px; padding: 1px 8px; margin-right: 10px;
+  }
+  .topbar .desc { font-size: 13px; color: var(--muted); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 76px 20px 40px; }
+  h2 { font-size: 17px; margin: 24px 0 12px; color: var(--cyan); }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
+  button {
+    background: #1e293b; color: var(--text); border: 1px solid #334155;
+    border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer;
+    transition: all .15s;
+  }
+  button:hover { border-color: var(--cyan); color: var(--cyan); }
+  button.active { background: var(--cyan); color: #06222a; border-color: var(--cyan); font-weight: 700; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--card); border: 1px solid #1e293b;
+    border-radius: 12px; padding: 18px;
+  }
+  .panel h3 { margin: 0 0 4px; font-size: 15px; }
+  .panel .sub { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+  .panel.cb h3 { color: var(--violet); }
+  .panel.bb h3 { color: var(--orange); }
+  .stage {
+    position: relative;
+    background:
+      linear-gradient(0deg, transparent 24%, rgba(148,163,184,.06) 25%, rgba(148,163,184,.06) 26%, transparent 27%, transparent 74%, rgba(148,163,184,.06) 75%, rgba(148,163,184,.06) 76%, transparent 77%, transparent),
+      linear-gradient(90deg, transparent 24%, rgba(148,163,184,.06) 25%, rgba(148,163,184,.06) 26%, transparent 27%, transparent 74%, rgba(148,163,184,.06) 75%, rgba(148,163,184,.06) 76%, transparent 77%, transparent);
+    background-size: 40px 40px;
+    border-radius: 8px;
+    min-height: 260px;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  /* margin 外层（仅示意，真实 margin 透明不可见，这里用虚线描出） */
+  .margin-ring {
+    border: 1px dashed #64748b;
+    background: rgba(148,163,184,.06);
+    display: flex; align-items: center; justify-content: center;
+    transition: all .25s ease;
+  }
+  .demo-box {
+    width: 220px; height: 100px;
+    padding: 20px;
+    border: 10px solid;
+    margin: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    transition: all .25s ease;
+  }
+  .cb .demo-box {
+    box-sizing: content-box;
+    border-color: var(--violet);
+    background: rgba(167,139,250,.18);
+    color: #ddd6fe;
+  }
+  .bb .demo-box {
+    box-sizing: border-box;
+    border-color: var(--orange);
+    background: rgba(249,115,22,.18);
+    color: #fed7aa;
+  }
+  .stats { margin-top: 14px; font-size: 13px; }
+  .stats table { width: 100%; border-collapse: collapse; }
+  .stats td, .stats th {
+    border: 1px solid #1e293b; padding: 6px 8px; text-align: center;
+  }
+  .stats th { background: #0e1626; color: var(--muted); font-weight: 600; font-size: 12px; }
+  .stats .live { color: var(--cyan); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -2px; }
+  .docref {
+    background: var(--card); border: 1px solid #1e293b; border-radius: 12px;
+    padding: 16px 18px; margin-top: 18px;
+  }
+  .docref table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .docref td, .docref th { border: 1px solid #1e293b; padding: 7px 10px; text-align: center; }
+  .docref th { background: #0e1626; color: var(--cyan); }
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+  }
+  pre {
+    background: #0e1626; border: 1px solid #1e293b; border-radius: 8px;
+    padding: 12px 14px; overflow-x: auto; color: #cbd5e1;
+  }
+  .note { font-size: 12.5px; color: var(--muted); }
+  .note b { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="tag">对应 CSS-B1/B2 盒模型</span>
+  <span class="desc">同样的 width:220px / height:100px / padding:20px / border:10px / margin:10px，切换 box-sizing 观察 content 区与占位尺寸差异</span>
+</div>
+
+<div class="wrap">
+
+  <div class="controls">
+    <button id="btnCompare" class="active">恢复对比（左 content-box / 右 border-box）</button>
+    <button id="BtnAll">两个方块都切换为同一模型</button>
+    <button id="btnGlobal">演示工程推荐：全局 * { box-sizing: border-box }</button>
+  </div>
+  <p class="note" id="modeNote">当前：左为标准盒模型（content-box，默认值），右为怪异盒模型（border-box）。虚线框 = margin 10px 的占位范围。</p>
+
+  <div class="grid">
+    <div class="panel cb" id="panelA">
+      <h3>方块 A · <span class="modelName">content-box</span></h3>
+      <div class="sub">标准盒模型：width 只等于内容区，实际占位 = content + padding + border</div>
+      <div class="stage">
+        <div class="margin-ring" id="ringA">
+          <div class="demo-box" id="boxA">content</div>
+        </div>
+      </div>
+      <div class="stats">
+        <table>
+          <tr><th>内容区 content</th><th>渲染宽高（不含 margin）</th><th>总占位（含 margin）</th></tr>
+          <tr>
+            <td class="live" id="aContent">–</td>
+            <td class="live" id="aRender">–</td>
+            <td class="live" id="aTotal">–</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel bb" id="panelB">
+      <h3>方块 B · <span class="modelName">border-box</span></h3>
+      <div class="sub">怪异盒模型：width 已包含 padding 与 border，内容区被压缩</div>
+      <div class="stage">
+        <div class="margin-ring" id="ringB">
+          <div class="demo-box" id="boxB">content</div>
+        </div>
+      </div>
+      <div class="stats">
+        <table>
+          <tr><th>内容区 content</th><th>渲染宽高（不含 margin）</th><th>总占位（含 margin）</th></tr>
+          <tr>
+            <td class="live" id="bContent">–</td>
+            <td class="live" id="bRender">–</td>
+            <td class="live" id="bTotal">–</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <p class="legend">
+    <span><i style="background:rgba(167,139,250,.5)"></i>content（A 紫 / B 橙）</span>
+    <span><i style="background:#64748b"></i>padding 20px 区域（色块内圈）</span>
+    <span><i style="border:2px solid #94a3b8;background:transparent"></i>border 10px（实线边框）</span>
+    <span><i style="border:1px dashed #64748b;background:rgba(148,163,184,.1)"></i>margin 10px（透明，虚线仅示意）</span>
+  </p>
+
+  <h2>文档 B2 原题数值还原（width:200px / height:100px / padding:20px / border:5px / margin:10px）</h2>
+  <div class="docref">
+    <table>
+      <tr><th>box-sizing</th><th>① 内容区</th><th>② 实际渲染宽高（不含 margin）</th><th>③ 含 margin 总占位</th></tr>
+      <tr>
+        <td>content-box</td>
+        <td>200 × 100</td>
+        <td>250 × 150<br><span class="note">200 + 20×2 + 5×2 = 250；100 + 20×2 + 5×2 = 150</span></td>
+        <td>270 × 170</td>
+      </tr>
+      <tr>
+        <td>border-box</td>
+        <td>150 × 50<br><span class="note">200 − (20+5)×2 = 150；100 − (20+5)×2 = 50</span></td>
+        <td>200 × 100（恒等于 width/height）</td>
+        <td>220 × 120</td>
+      </tr>
+    </table>
+    <p class="note" style="margin-top:10px">
+      <b>交叉验证：</b>两种模型总占位相差 270 − 220 = 50px，恰为 (20+5)×2，即被 width「吸收」的 padding 与 border 双侧之和。margin 永远不计入 width/height，只影响元素间占位。
+    </p>
+  </div>
+
+  <h2>工程推荐写法</h2>
+  <pre>*, *::before, *::after { box-sizing: border-box; }
+/* 让「设定尺寸 = 最终尺寸」，padding 不会撑破布局 */</pre>
+
+</div>
+
+<script>
+  const boxA = document.getElementById('boxA');
+  const boxB = document.getElementById('boxB');
+  const ringA = document.getElementById('ringA');
+  const ringB = document.getElementById('ringB');
+  const panelA = document.getElementById('panelA');
+  const panelB = document.getElementById('panelB');
+
+  function measure(box, ring, ids) {
+    // 内容区：clientWidth 含 padding，需减去
+    const cs = getComputedStyle(box);
+    const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    const contentW = box.clientWidth - padX;
+    const contentH = box.clientHeight - padY;
+    // 渲染宽高（不含 margin）：border 盒
+    const rc = box.getBoundingClientRect();
+    // 含 margin 总占位：用 margin-ring 的尺寸（ring 紧贴 margin 外缘，flex 内 shrink? 避免 shrink）
+    const rr = ring.getBoundingClientRect();
+    document.getElementById(ids.c).textContent = contentW + ' × ' + contentH;
+    document.getElementById(ids.r).textContent = Math.round(rc.width) + ' × ' + Math.round(rc.height);
+    document.getElementById(ids.t).textContent = Math.round(rr.width) + ' × ' + Math.round(rr.height);
+  }
+
+  function refresh() {
+    measure(boxA, ringA, { c: 'aContent', r: 'aRender', t: 'aTotal' });
+    measure(boxB, ringB, { c: 'bContent', r: 'bRender', t: 'bTotal' });
+  }
+
+  function setModel(side, model) {
+    const box = side === 'A' ? boxA : boxB;
+    const panel = side === 'A' ? panelA : panelB;
+    box.style.boxSizing = model;
+    panel.querySelector('.modelName').textContent = model;
+  }
+
+  const btnCompare = document.getElementById('btnCompare');
+  const btnAll = document.getElementById('BtnAll');
+  const btnGlobal = document.getElementById('btnGlobal');
+  const modeNote = document.getElementById('modeNote');
+  let allModel = null; // null = 对比模式
+
+  [btnCompare, btnAll, btnGlobal].forEach(b => b.classList.remove('active'));
+
+  btnCompare.addEventListener('click', () => {
+    allModel = null;
+    setModel('A', 'content-box'); setModel('B', 'border-box');
+    panelA.className = 'panel cb'; panelB.className = 'panel bb';
+    btnCompare.classList.add('active'); btnAll.classList.remove('active'); btnGlobal.classList.remove('active');
+    modeNote.textContent = '当前：左为标准盒模型（content-box，默认值），右为怪异盒模型（border-box）。虚线框 = margin 10px 的占位范围。';
+    requestAnimationFrame(refresh);
+  });
+
+  btnAll.addEventListener('click', () => {
+    btnCompare.classList.remove('active'); btnGlobal.classList.remove('active');
+    btnAll.classList.toggle('active');
+    const on = btnAll.classList.contains('active');
+    if (on) {
+      allModel = allModel === 'border-box' ? 'content-box' : 'border-box';
+      setModel('A', allModel); setModel('B', allModel);
+      panelA.className = 'panel ' + (allModel === 'content-box' ? 'cb' : 'bb');
+      panelB.className = 'panel ' + (allModel === 'content-box' ? 'cb' : 'bb');
+      modeNote.textContent = '当前：两个方块同为 ' + allModel + ' —— 观察总占位差异（content-box 会被 padding/border 撑大）。再点一次按钮可在两种模型间切换。';
+      btnAll.textContent = '两个方块都切换为：' + (allModel === 'border-box' ? 'content-box' : 'border-box');
+    } else {
+      btnCompare.click();
+    }
+    requestAnimationFrame(refresh);
+  });
+
+  btnGlobal.addEventListener('click', () => {
+    allModel = 'border-box';
+    setModel('A', 'border-box'); setModel('B', 'border-box');
+    panelA.className = 'panel bb'; panelB.className = 'panel bb';
+    btnGlobal.classList.add('active'); btnCompare.classList.remove('active'); btnAll.classList.remove('active');
+    btnAll.textContent = '两个方块都切换为同一模型';
+    modeNote.textContent = '工程推荐：全局 border-box。两个方块 width:220px 即最终占位 220px，padding 向内吸收。';
+    requestAnimationFrame(refresh);
+  });
+
+  window.addEventListener('resize', refresh);
+  refresh();
+</script>
+</body>
+</html>

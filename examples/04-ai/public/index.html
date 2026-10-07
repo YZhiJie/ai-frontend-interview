@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>04 AI 应用开发 · Mock 示例导航</title>
+<style>
+  :root {
+    --bg: #0f1117; --panel: #1a1d28; --border: #2e3346;
+    --text: #e6e8f0; --muted: #8b90a5; --accent: #6366f1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    min-height: 100vh; display: flex; justify-content: center;
+  }
+  .app { width: 100%; max-width: 780px; padding: 48px 16px; }
+  h1 { font-size: 26px; margin: 0 0 8px; }
+  .lead { color: var(--muted); line-height: 1.8; font-size: 14px; margin-bottom: 28px; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+  @media (max-width: 640px) { .cards { grid-template-columns: 1fr; } }
+  .card {
+    display: block; text-decoration: none; color: var(--text);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px; transition: border-color .15s, transform .15s;
+  }
+  .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .card h2 { font-size: 16px; margin: 0 0 8px; color: #a5b4fc; }
+  .card p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .tags { margin-top: 12px; }
+  .tag {
+    display: inline-block; font-size: 11px; color: #a5b4fc; background: rgba(99,102,241,.12);
+    border: 1px solid rgba(99,102,241,.35); border-radius: 999px; padding: 2px 8px; margin: 0 6px 6px 0;
+  }
+  .note {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px; font-size: 13px; line-height: 1.9;
+  }
+  .note h3 { margin: 0 0 10px; font-size: 15px; }
+  code { background: #232735; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+  ul { margin: 8px 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>04 · AI 应用开发示例</h1>
+  <p class="lead">
+    本目录所有接口均为 <strong>零 npm 依赖、纯 <code>node:http</code> 的 MOCK 实现</strong>，
+    不需要任何 API Key，<code>node server.mjs</code> 即可运行。
+    MOCK 的意义是让前端把流式渲染、中断、异步任务轮询、失败重试这套<strong>交互机制</strong>跑通；
+    模型能力本身在真实项目中通过后端代理接入。
+  </p>
+
+  <div class="cards">
+    <a class="card" href="/chat.html">
+      <h2>① SSE 流式聊天</h2>
+      <p>fetch + ReadableStream 手写分帧（跨 chunk 半包、[DONE]、stream 解码），打字机渲染，AbortController 停止生成。</p>
+      <div class="tags">
+        <span class="tag">AI-B3</span><span class="tag">AI-I2</span><span class="tag">AI-A1</span>
+      </div>
+    </a>
+    <a class="card" href="/image.html">
+      <h2>② 文生图任务</h2>
+      <p>提交拿 jobId → 300ms 轮询进度 → 排队骨架/进度条 → 成图；可模拟失败并一键重试新任务。</p>
+      <div class="tags">
+        <span class="tag">AI-I3</span><span class="tag">AI-A2</span>
+      </div>
+    </a>
+  </div>
+
+  <div class="note">
+    <h3>真实项目中的对应替换点（Mock → 生产）</h3>
+    <ul>
+      <li><strong>固定回答 → 真实大模型：</strong>服务端把请求转发到 OpenAI 兼容接口，地址通过环境变量配置，如 <code>LLM_BASE_URL=https://api.example.com/v1</code>、<code>LLM_API_KEY=sk-xxx</code>；模型返回的 SSE 字节透传给前端即可，协议格式（<code>data: ...\n\n</code>、<code>[DONE]</code>）基本一致。</li>
+      <li><strong>API Key 绝不下发浏览器：</strong>前端永远只请求自己的后端 / Serverless / Edge Function，由后端代理承担鉴权、限流、审计与内容安全；Key 写在浏览器代码或打包产物里等于公开，会被盗刷。</li>
+      <li><strong>内存 Map → 持久化任务表：</strong>文生图任务状态在生产环境应放 Redis / 数据库，服务重启不丢；进度获取也可换成 SSE 推送。</li>
+      <li><strong>base64 dataUrl → CDN URL：</strong>小图临时预览可用 base64；正式成图应上传对象存储返回签名 URL，载荷小、可缓存、可懒加载。</li>
+      <li><strong>EventSource 的取舍：</strong>本 demo 用 fetch 手写解析，是因为真实 LLM 网关普遍要求 POST + 自定义鉴权头（Bearer token），而原生 EventSource 不支持；纯 GET 订阅通知类场景则优先 EventSource，自带自动重连与 Last-Event-ID。</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

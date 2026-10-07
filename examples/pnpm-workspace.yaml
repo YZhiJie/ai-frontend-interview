@@ -1,0 +1,13 @@
+# pnpm 11 workspace：统一管理需要独立依赖的三个子工程
+# 在 examples/ 目录执行一次 `pnpm install` 即可安装全部（含根 tsx/typescript/js-yaml）
+packages:
+  - '01-javascript/a2-babel-plugin'
+  - '05-nodejs/i1-koa-api'
+  - '06-nextjs/interview-app'
+
+allowBuilds:
+  esbuild: set this to true or false
+
+# 允许 esbuild 执行 postinstall（tsx 的底层依赖，需要链接平台二进制）
+onlyBuiltDependencies:
+  - esbuild

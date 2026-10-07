@@ -1,0 +1,141 @@
+# CICD-I3｜MR 门禁规则（不合规代码进不了 main）
+#
+# 分支保护配置（GitHub 仓库 Settings → Branches → Add rule）：
+#   1. main 设为 protected branch：禁止 force push / 直接 push，要求 PR + Review
+#   2. Required status checks 勾选：lint / typecheck / test-coverage / bundle-size
+#      —— 任一不通过，Merge 按钮禁用（下面注释 ★ required check 标注）
+#   3. 豁免机制：白名单带到期时间、PR 标签豁免需 reviewer 二次确认并填写原因
+name: Quality Gates
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ---------- ① commit message 规范（可选；建议本地 husky + CI 双层） ----------
+  commitlint:
+    name: Commitlint（可选）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 需要完整历史才能拿到 PR 的全部 commit
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # 可选门禁：校验 Conventional Commits（feat:/fix:/chore: ...）
+      # 需在仓库安装 @commitlint/cli @commitlint/config-conventional
+      - run: pnpm install --frozen-lockfile
+      - name: Lint all PR commits
+        run: |
+          npx commitlint --from origin/main --to HEAD --verbose
+        # ★ 建议设为 required check（先以非阻断观察 1-2 周误报率再转强制）
+
+  # ---------- ② ESLint ----------
+  lint: # ★ required check
+    name: ESLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint # eslint . --max-warnings 0
+
+  # ---------- ③ TypeScript 类型检查（全量，保证跨模块类型一致） ----------
+  typecheck: # ★ required check
+    name: TypeScript tsc --noEmit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+
+  # ---------- ④ 单测覆盖率阈值（全局下限 + 增量视角防存量遮蔽） ----------
+  test-coverage: # ★ required check
+    name: Vitest Coverage Threshold
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # vitest.config.ts 中配置阈值示例：
+      #   test: {
+      #     coverage: {
+      #       provider: 'v8',
+      #       thresholds: { lines: 70, functions: 70, branches: 70, statements: 70 },
+      #       // 增量覆盖率可配合 diff-coverage 插件，要求不低于 main 基线
+      #     },
+      #   }
+      - run: pnpm exec vitest run --coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+
+  # ---------- ⑤ Bundle size 预算（这里选 size-limit；bundlesize2 为同类替代） ----------
+  bundle-size: # ★ required check
+    name: Bundle Size Budget（size-limit）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # 需安装 @size-limit/file 并在 package.json 配置按入口预算，例如：
+      #   "size-limit": [
+      #     { "path": ".next/static/chunks/main-*.js", "limit": "180 kB", "gzip": true },
+      #     { "path": ".next/static/chunks/app/**/*.js", "limit": "120 kB", "gzip": true }
+      #   ]
+      # 对比基线：size-limit 默认与上次通过的结果对比，超预算（如 gzip +10KB）即失败
+      - run: pnpm dlx size-limit
+
+  # ---------- ⑥ 可访问性（可选；critical 级 violation 才阻断） ----------
+  accessibility:
+    name: A11y（axe-core，可选）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 推荐 Playwright + @axe-core/playwright 在组件/E2E 中扫描：
+      # critical 级 violation 失败，普通级别仅报告（先不阻断，观察后再收紧）
+      - run: 'echo "TODO - pnpm exec playwright test --grep @a11y"'
+
+  # ---------- ⑦ 文档链接检查（可选） ----------
+  markdown-link-check:
+    name: Markdown Link Check（可选）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
+          use-quiet-mode: 'yes'
+          folder-path: 'docs'
+          max-depth: 2
