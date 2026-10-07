@@ -17,7 +17,8 @@ const lineOf = (src, idx) => src.slice(0, idx).split("\n").length;
 function checkWellFormed(src) {
   const errs = [];
   const stack = [];
-  const re = /<(\/?)([A-Za-z][-A-Za-z0-9_.]*)((?:"[^"]*"|'[^']*'|[^"'>])*?)(\/?)>/g;
+  const re =
+    /<(\/?)([A-Za-z][-A-Za-z0-9_.]*)((?:"[^"]*"|'[^']*'|[^"'>])*?)(\/?)>/g;
   let last = 0;
   let m;
   while ((m = re.exec(src))) {
@@ -133,6 +134,19 @@ for (const ep of manifest.episodes) {
     problems.push(...checkWellFormed(src));
     problems.push(...checkTexts(src));
   }
+  // —— 讲解 MD 完整性（阅读器 fetchEpisode 要求 svg/md 同时可用）——
+  const mdPath = join(here, `${ep.slug}.md`);
+  if (!existsSync(mdPath)) {
+    problems.push(`缺少 ${ep.slug}.md`);
+  } else {
+    const md = readFileSync(mdPath, "utf8");
+    const epNo = String(ep.ep).padStart(2, "0");
+    if (!md.includes(`# EP.${epNo}`))
+      problems.push('MD 标题不符合 "# EP.NN" 约定');
+    if (ep.part && !md.includes(ep.part))
+      problems.push(`MD 未引用对应正文 ${ep.part}`);
+    if (!/(自测|Quiz)/.test(md)) problems.push("MD 缺少自测题");
+  }
   const errs = problems.filter(
     (p) => !/^文本|^单行|^缺少显式|禁止使用|^viewBox|^重复 id/.test(p),
   );
@@ -143,8 +157,14 @@ for (const ep of manifest.episodes) {
   warnCount += warns.length;
   const status = errs.length ? "✗" : warns.length ? "△" : "✓";
   console.log(
-    `${status} ${label} ${errs.length || warns.length ? [...errs, ...warns].join("；") : "svg ✓ 良构 ✓ 文本 ✓"}`,
+    `${status} ${label} ${errs.length || warns.length ? [...errs, ...warns].join("；") : "svg ✓ md ✓ 良构 ✓ 文本 ✓"}`,
   );
+}
+
+// —— 阅读器入口存在性 ——
+if (!existsSync(join(here, "index.html"))) {
+  console.log("✗ 缺少漫画阅读器 index.html");
+  errorCount++;
 }
 
 console.log(

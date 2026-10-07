@@ -1,13 +1,17 @@
 {
+  "series": "AI 前端面试漫画剧场 · 霓虹墨 Neon Ink",
+  "version": "1.0.0",
   "canvas": { "width": 1200, "height": 840 },
+  "panels": { "count": 4, "width": 572, "height": 361 },
+  "characters": ["小研", "码叔"],
   "episodes": [
-    { "ep": 1, "title": "JS 事件循环", "slug": "ep01-js-event-loop" },
-    { "ep": 2, "title": "CSS 层叠上下文", "slug": "ep02-css-stacking" },
-    { "ep": 3, "title": "Canvas vs SVG", "slug": "ep03-viz-canvas-svg" },
-    { "ep": 4, "title": "SSE 流式输出", "slug": "ep04-ai-sse" },
-    { "ep": 5, "title": "Node 事件循环", "slug": "ep05-node-eventloop" },
-    { "ep": 6, "title": "SSR/SSG/ISR 选型", "slug": "ep06-nextjs-rendering" },
-    { "ep": 7, "title": "排序复杂度之旅", "slug": "ep07-algo-sorting" },
-    { "ep": 8, "title": "CI/CD 流水线", "slug": "ep08-cicd-pipeline" }
+    { "ep": 1, "slug": "ep01-js-event-loop", "title": "JS 事件循环", "part": "docs/01-javascript.md" },
+    { "ep": 2, "slug": "ep02-css-stacking", "title": "CSS 层叠上下文", "part": "docs/02-css.md" },
+    { "ep": 3, "slug": "ep03-viz-canvas-svg", "title": "Canvas vs SVG", "part": "docs/03-data-visualization.md" },
+    { "ep": 4, "slug": "ep04-ai-sse", "title": "SSE 流式输出", "part": "docs/04-ai-development.md" },
+    { "ep": 5, "slug": "ep05-node-eventloop", "title": "Node 事件循环", "part": "docs/05-nodejs.md" },
+    { "ep": 6, "slug": "ep06-nextjs-rendering", "title": "SSR/SSG/ISR 选型", "part": "docs/06-fullstack-nextjs.md" },
+    { "ep": 7, "slug": "ep07-algo-sorting", "title": "排序复杂度之旅", "part": "docs/07-algorithms.md" },
+    { "ep": 8, "slug": "ep08-cicd-pipeline", "title": "CI/CD 流水线", "part": "docs/08-cicd.md" }
   ]
 }

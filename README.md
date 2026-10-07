@@ -66,7 +66,17 @@
 
 ## 🎬 漫画教程
 
-`comics/` 目录下每领域一幅四格漫画（霓虹墨 NEON INK 风格），前两格讲原理、第三格给实证、第四格总结坑点（橙色标签）与"码叔总结"。可通过浏览器直接打开 SVG，或从各领域文档顶部的链接进入。
+`comics/` 目录下每领域一幅四格漫画（霓虹墨 NEON INK 风格），前两格讲原理、第三格给实证、第四格总结坑点（橙色标签）与"码叔总结"。
+
+**推荐用整合阅读器观看**（复刻自 frontend-advanced-guide 漫画剧场）：
+
+```bash
+# 阅读器通过 fetch 加载资源，需经本地服务器访问（file:// 直开被浏览器拦截）
+python3 -m http.server 8899
+# 打开 http://127.0.0.1:8899/comics/index.html
+```
+
+阅读器能力：封面一键进入 + 继续阅读（localStorage 记忆进度）、**翻页 / 长卷双模式**（快捷键 M）、侧边 8 话目录与已读标记、键盘 ←/→/Home/End 导航、每话右侧**讲解抽屉**（剧情回顾/知识点拆解/坑点清单/自测题，Esc 关闭）、SVG 内联矢量缩放、按需加载 + 相邻话预取、单话失败独立重试。也可直接从各领域文档顶部的链接打开单幅 SVG。
 
 ## 🧪 可运行示例
 
@@ -101,17 +111,18 @@ ai-frontend-interview/
 │   ├── 06-fullstack-nextjs.md
 │   ├── 07-algorithms.md
 │   └── 08-cicd.md
-├── comics/                            # 漫画式教程
-│   ├── manifest.json                  # 话数清单
-│   ├── check-comics.mjs               # 门禁校验脚本
-│   ├── ep01-js-event-loop.svg
-│   ├── ep02-css-stacking.svg
-│   ├── ep03-viz-canvas-svg.svg
-│   ├── ep04-ai-sse.svg
-│   ├── ep05-node-eventloop.svg
-│   ├── ep06-nextjs-rendering.svg
-│   ├── ep07-algo-sorting.svg
-│   └── ep08-cicd-pipeline.svg
+├── comics/                            # 漫画式教程 + 整合阅读器
+│   ├── index.html                     # 漫画剧场阅读器（双模式/讲解抽屉/进度记忆）
+│   ├── manifest.json                  # 话数清单（slug/title/正文 part 映射）
+│   ├── check-comics.mjs               # 门禁校验脚本（SVG 良构 + MD 完整性）
+│   ├── ep01-js-event-loop.svg + .md   # 每话：SVG 原画 + 讲解 Markdown
+│   ├── ep02-css-stacking.svg + .md
+│   ├── ep03-viz-canvas-svg.svg + .md
+│   ├── ep04-ai-sse.svg + .md
+│   ├── ep05-node-eventloop.svg + .md
+│   ├── ep06-nextjs-rendering.svg + .md
+│   ├── ep07-algo-sorting.svg + .md
+│   └── ep08-cicd-pipeline.svg + .md
 └── examples/                          # 配套可运行示例（详见 examples/README.md）
     ├── package.json                   # pnpm workspace 根（tsx/typescript/js-yaml）
     ├── 01-javascript/                 # 9 个 tsx 单元 + Babel AST 插件子工程
@@ -126,5 +137,6 @@ ai-frontend-interview/
 
 ## 📌 版本记录
 
+- **v1.2.0**（2026-10-07）：漫画教程升级为整合阅读器（[comics/index.html](comics/index.html)）——翻页/长卷双模式、讲解抽屉、进度记忆、键盘导航、按需预取；新增 8 话讲解 MD（剧情回顾/知识点拆解/坑点清单/自测题），门禁扩展 MD 完整性校验
 - **v1.1.0**（2026-10-07）：新增 [examples/](examples/) 配套可运行示例——40+ 可运行单元，覆盖全部 8 领域（tsx 脚本/静态 HTML/mock 服务/Koa/Next.js 15 完整工程/workflow 样例），经实跑验证
 - **v1.0.0**（2026-10-07）：首发 8 大领域 79 道分级面试题 + 8 幅漫画教程 + 门禁校验脚本
