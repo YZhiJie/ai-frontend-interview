@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 840" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#101a33"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="840" fill="url(#bg)"/>
+  <polygon points="980,0 1060,0 760,840 680,840" fill="#22d3ee" opacity="0.04"/>
+  <polygon points="150,0 220,0 1040,840 970,840" fill="#a78bfa" opacity="0.03"/>
+
+  <rect x="20" y="14" width="92" height="36" rx="9" fill="#7C3AED"/>
+  <text x="66" y="38" text-anchor="middle" font-size="18" font-weight="bold" fill="#ffffff">EP.02</text>
+  <text x="126" y="40" font-size="26" font-weight="bold" fill="url(#titleGrad)">CSS 层叠上下文</text>
+  <text x="1180" y="38" text-anchor="end" font-size="13" fill="#64748b">AI 前端面试漫画 · NEON INK</text>
+  <rect x="20" y="62" width="1160" height="2" rx="1" fill="url(#titleGrad)" opacity="0.6"/>
+
+  <g transform="translate(20,84)">
+    <rect width="572" height="361" rx="14" fill="#0e1730" stroke="#223055"/>
+    <polygon points="380,0 450,0 120,361 50,361" fill="#22d3ee" opacity="0.04"/>
+    <rect x="14" y="13" width="26" height="20" rx="6" fill="#22d3ee"/>
+    <text x="27" y="28" text-anchor="middle" font-size="14" font-weight="bold" fill="#0b1220">1</text>
+    <text x="50" y="29" font-size="17" font-weight="bold" fill="#e2e8f0">困境：9999 压不过 2</text>
+    <g transform="translate(52,110)">
+      <rect x="-19" y="14" width="38" height="22" rx="9" fill="#7C3AED"/>
+      <circle cx="0" cy="-2" r="16" fill="#ffd9b3"/>
+      <path d="M-16,-2 a16,16 0 0 1 32,0 q-3,-13 -16,-13 q-13,0 -16,13 z" fill="#22d3ee"/>
+      <circle cx="15" cy="4" r="6.5" fill="#22d3ee"/>
+      <circle cx="-5" cy="0" r="1.7" fill="#0b1220"/>
+      <circle cx="5" cy="0" r="1.7" fill="#0b1220"/>
+      <path d="M-3,5 q3,3 6,0" stroke="#0b1220" stroke-width="1.3" fill="none"/>
+    </g>
+    <polygon points="88,100 74,106 88,112" fill="#f8fafc"/>
+    <rect x="88" y="82" width="360" height="52" rx="10" fill="#f8fafc"/>
+    <text x="102" y="104" font-size="15" fill="#0b1220">弹窗 z-index:9999，怎么被</text>
+    <text x="102" y="126" font-size="15" fill="#0b1220">z-index:2 的卡片盖住了？！</text>
+    <g transform="translate(52,196)">
+      <rect x="-19" y="14" width="38" height="22" rx="9" fill="#1d4ed8"/>
+      <path d="M-5,18 L5,18 L3.5,27 L0,29 L-3.5,27 Z" fill="#f97316"/>
+      <circle cx="0" cy="-2" r="16" fill="#ffd9b3"/>
+      <path d="M-16,-2 L-11,-13 L-6,-4 L0,-14 L6,-4 L11,-13 L16,-2 Q0,-11 -16,-2 Z" fill="#f97316"/>
+      <circle cx="-5" cy="0" r="1.7" fill="#0b1220"/>
+      <circle cx="5" cy="0" r="1.7" fill="#0b1220"/>
+      <path d="M-3,5 q3,3 6,0" stroke="#0b1220" stroke-width="1.3" fill="none"/>
+    </g>
+    <polygon points="88,177 74,183 88,189" fill="#f8fafc"/>
+    <rect x="88" y="168" width="300" height="34" rx="10" fill="#f8fafc"/>
+    <text x="102" y="190" font-size="15" fill="#0b1220">先查查它的「户口」在哪。</text>
+    <rect x="24" y="214" width="524" height="76" rx="8" fill="#0a0f1c" stroke="#22d3ee" stroke-opacity="0.35"/>
+    <text x="38" y="236" font-size="12.5" fill="#7dd3fc" font-family="'SF Mono',Consolas,monospace">.modal { z-index: 9999 }</text>
+    <text x="38" y="254" font-size="12.5" fill="#7dd3fc" font-family="'SF Mono',Consolas,monospace">.card  { z-index: 2 }</text>
+    <text x="38" y="272" font-size="12.5" fill="#f472b6" font-family="'SF Mono',Consolas,monospace">// 结果：2 反而盖住了 9999？！</text>
+    <rect x="24" y="302" width="524" height="52" rx="8" fill="#111a30" stroke="#1e2a44"/>
+    <rect x="24" y="302" width="4" height="52" rx="2" fill="#22d3ee"/>
+    <text x="40" y="322" font-size="13.5" fill="#e2e8f0">z-index 不是全站排名，</text>
+    <text x="40" y="341" font-size="13.5" fill="#94a3b8">只在同一个层叠上下文里比大小。</text>
+  </g>
+
+  <g transform="translate(608,84)">
+    <rect width="572" height="361" rx="14" fill="#0e1730" stroke="#223055"/>
+    <polygon points="420,0 480,0 150,361 90,361" fill="#a78bfa" opacity="0.04"/>
+    <rect x="14" y="13" width="26" height="20" rx="6" fill="#a78bfa"/>
+    <text x="27" y="28" text-anchor="middle" font-size="14" font-weight="bold" fill="#0b1220">2</text>
+    <text x="50" y="29" font-size="17" font-weight="bold" fill="#e2e8f0">原理：隔离罩效应</text>
+    <g transform="translate(52,110)">
+      <rect x="-19" y="14" width="38" height="22" rx="9" fill="#1d4ed8"/>
+      <path d="M-5,18 L5,18 L3.5,27 L0,29 L-3.5,27 Z" fill="#f97316"/>
+      <circle cx="0" cy="-2" r="16" fill="#ffd9b3"/>
+      <path d="M-16,-2 L-11,-13 L-6,-4 L0,-14 L6,-4 L11,-13 L16,-2 Q0,-11 -16,-2 Z" fill="#f97316"/>
+      <circle cx="-5" cy="0" r="1.7" fill="#0b1220"/>
+      <circle cx="5" cy="0" r="1.7" fill="#0b1220"/>
+      <path d="M-3,5 q3,3 6,0" stroke="#0b1220" stroke-width="1.3" fill="none"/>
+    </g>
+    <polygon points="88,99 74,105 88,111" fill="#f8fafc"/>
+    <rect x="88" y="88" width="336" height="34" rx="10" fill="#f8fafc"/>
+    <text x="102" y="110" font-size="15" fill="#0b1220">有些 CSS 会给元素罩个「罩」。</text>
+    <rect x="32" y="134" width="112" height="28" rx="8" fill="#111a30" stroke="#22d3ee" stroke-opacity="0.5"/>
+    <text x="88" y="153" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#22d3ee">① transform</text>
+    <rect x="152" y="134" width="104" height="28" rx="8" fill="#111a30" stroke="#a78bfa" stroke-opacity="0.5"/>
+    <text x="204" y="153" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#a78bfa">② opacity</text>
+    <rect x="264" y="134" width="88" height="28" rx="8" fill="#111a30" stroke="#f472b6" stroke-opacity="0.5"/>
+    <text x="308" y="153" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#f472b6">③ filter</text>
+    <rect x="360" y="134" width="172" height="28" rx="8" fill="#111a30" stroke="#f97316" stroke-opacity="0.5"/>
+    <text x="446" y="153" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#f97316">④ position + z-index</text>
+    <text x="32" y="180" font-size="12" fill="#94a3b8">它们都会创建独立的层叠上下文（罩）</text>
+    <rect x="32" y="192" width="296" height="96" rx="10" fill="#111a30" stroke="#a78bfa" stroke-opacity="0.7" stroke-dasharray="6 4"/>
+    <text x="48" y="214" font-size="12" font-weight="bold" fill="#a78bfa">卡片 A · transform 创建罩</text>
+    <rect x="48" y="224" width="200" height="48" rx="8" fill="#0a0f1c" stroke="#f472b6" stroke-opacity="0.6"/>
+    <text x="148" y="252" text-anchor="middle" font-size="12" fill="#f472b6">弹窗 z-index: 9999</text>
+    <text x="368" y="214" font-size="11" fill="#94a3b8">A 的兄弟们：</text>
+    <rect x="368" y="224" width="172" height="48" rx="8" fill="#0a0f1c" stroke="#22d3ee" stroke-opacity="0.6"/>
+    <text x="454" y="252" text-anchor="middle" font-size="12" fill="#22d3ee">卡片 B z-index: 2</text>
+    <rect x="24" y="304" width="524" height="52" rx="8" fill="#111a30" stroke="#1e2a44"/>
+    <rect x="24" y="304" width="4" height="52" rx="2" fill="#a78bfa"/>
+    <text x="40" y="324" font-size="13.5" fill="#e2e8f0">9999 只在 A 的罩内称王；</text>
+    <text x="40" y="343" font-size="13.5" fill="#94a3b8">出了罩，父级的 z-index 才算数。</text>
+  </g>
+
+  <g transform="translate(20,462)">
+    <rect width="572" height="361" rx="14" fill="#0e1730" stroke="#223055"/>
+    <polygon points="380,0 450,0 120,361 50,361" fill="#f472b6" opacity="0.04"/>
+    <rect x="14" y="13" width="26" height="20" rx="6" fill="#f472b6"/>
+    <text x="27" y="28" text-anchor="middle" font-size="14" font-weight="bold" fill="#0b1220">3</text>
+    <text x="50" y="29" font-size="17" font-weight="bold" fill="#e2e8f0">实证：一行 transform 翻车</text>
+    <g transform="translate(52,110)">
+      <rect x="-19" y="14" width="38" height="22" rx="9" fill="#7C3AED"/>
+      <circle cx="0" cy="-2" r="16" fill="#ffd9b3"/>
+      <path d="M-16,-2 a16,16 0 0 1 32,0 q-3,-13 -16,-13 q-13,0 -16,13 z" fill="#22d3ee"/>
+      <circle cx="15" cy="4" r="6.5" fill="#22d3ee"/>
+      <circle cx="-5" cy="0" r="1.7" fill="#0b1220"/>
+      <circle cx="5" cy="0" r="1.7" fill="#0b1220"/>
+      <path d="M-3,5 q3,3 6,0" stroke="#0b1220" stroke-width="1.3" fill="none"/>
+    </g>
+    <polygon points="88,99 74,105 88,111" fill="#f8fafc"/>
+    <rect x="88" y="88" width="320" height="34" rx="10" fill="#f8fafc"/>
+    <text x="102" y="110" font-size="15" fill="#0b1220">加一行 translateZ 就翻车？</text>
+    <rect x="24" y="134" width="524" height="150" rx="8" fill="#0a0f1c" stroke="#f472b6" stroke-opacity="0.35"/>
+    <text x="38" y="156" font-size="12.5" fill="#7dd3fc" font-family="'SF Mono',Consolas,monospace">.card { transform: translateZ(0) }</text>
+    <text x="38" y="174" font-size="12.5" fill="#fbbf24" font-family="'SF Mono',Consolas,monospace">  /* ① 创建层叠上下文 */</text>
+    <text x="38" y="192" font-size="12.5" fill="#7dd3fc" font-family="'SF Mono',Consolas,monospace">.card .modal { z-index: 9999 }</text>
+    <text x="38" y="210" font-size="12.5" fill="#fbbf24" font-family="'SF Mono',Consolas,monospace">  /* ② 被困在 A 罩内 */</text>
+    <text x="38" y="228" font-size="12.5" fill="#7dd3fc" font-family="'SF Mono',Consolas,monospace">.sibling { z-index: 2 }</text>
+    <text x="38" y="246" font-size="12.5" fill="#fbbf24" font-family="'SF Mono',Consolas,monospace">/* ③ 和 .card 平级，比较的是 A 的排名 */</text>
+    <text x="38" y="264" font-size="12.5" fill="#34d399" font-family="'SF Mono',Consolas,monospace">// 结果：2 赢，9999 出不了罩</text>
+    <rect x="24" y="296" width="524" height="52" rx="8" fill="#111a30" stroke="#1e2a44"/>
+    <rect x="24" y="296" width="4" height="52" rx="2" fill="#f472b6"/>
+    <text x="40" y="316" font-size="13.5" fill="#e2e8f0">谁创建上下文，谁就是比较边界；</text>
+    <text x="40" y="335" font-size="13.5" fill="#94a3b8">子元素 z-index 再大，也出不了这个边。</text>
+  </g>
+
+  <g transform="translate(608,462)">
+    <rect width="572" height="361" rx="14" fill="#0e1730" stroke="#223055"/>
+    <polygon points="420,0 480,0 150,361 90,361" fill="#f97316" opacity="0.04"/>
+    <rect x="14" y="13" width="26" height="20" rx="6" fill="#f97316"/>
+    <text x="27" y="28" text-anchor="middle" font-size="14" font-weight="bold" fill="#0b1220">4</text>
+    <text x="50" y="29" font-size="17" font-weight="bold" fill="#e2e8f0">结案：失效先查父级</text>
+    <g transform="translate(52,110)">
+      <rect x="-19" y="14" width="38" height="22" rx="9" fill="#1d4ed8"/>
+      <path d="M-5,18 L5,18 L3.5,27 L0,29 L-3.5,27 Z" fill="#f97316"/>
+      <circle cx="0" cy="-2" r="16" fill="#ffd9b3"/>
+      <path d="M-16,-2 L-11,-13 L-6,-4 L0,-14 L6,-4 L11,-13 L16,-2 Q0,-11 -16,-2 Z" fill="#f97316"/>
+      <circle cx="-5" cy="0" r="1.7" fill="#0b1220"/>
+      <circle cx="5" cy="0" r="1.7" fill="#0b1220"/>
+      <path d="M-3,5 q3,3 6,0" stroke="#0b1220" stroke-width="1.3" fill="none"/>
+    </g>
+    <polygon points="88,99 74,105 88,111" fill="#f8fafc"/>
+    <rect x="88" y="88" width="300" height="34" rx="10" fill="#f8fafc"/>
+    <text x="102" y="110" font-size="15" fill="#0b1220">z-index 失效？先查父级。</text>
+    <rect x="24" y="146" width="250" height="26" rx="13" fill="#f97316" opacity="0.14" stroke="#f97316" stroke-opacity="0.55"/>
+    <text x="38" y="163" font-size="11.5" font-weight="bold" fill="#f97316">坑：transform/opacity 困住子元素</text>
+    <text x="38" y="192" font-size="12" fill="#94a3b8">弹层想全屏：挂到 body 直下，跳出罩</text>
+    <rect x="24" y="212" width="240" height="26" rx="13" fill="#f97316" opacity="0.14" stroke="#f97316" stroke-opacity="0.55"/>
+    <text x="38" y="229" font-size="11.5" font-weight="bold" fill="#f97316">坑：z-index 失效，先查父级上下文</text>
+    <text x="38" y="258" font-size="12" fill="#94a3b8">查祖先链上的 transform / opacity / filter</text>
+    <rect x="24" y="286" width="524" height="66" rx="8" fill="#111a30" stroke="#1e2a44"/>
+    <rect x="24" y="286" width="4" height="66" rx="2" fill="#f97316"/>
+    <text x="40" y="308" font-size="13.5" font-weight="bold" fill="#f97316">码叔总结</text>
+    <text x="40" y="328" font-size="13.5" fill="#e2e8f0">先找最近的层叠上下文祖先，</text>
+    <text x="40" y="346" font-size="13.5" fill="#94a3b8">在同一层比较，z-index 才有效。</text>
+  </g>
+
+  <text x="1180" y="832" text-anchor="end" font-size="11" fill="#475569">NEON INK · ai-frontend-interview · EP.02</text>
+</svg>
