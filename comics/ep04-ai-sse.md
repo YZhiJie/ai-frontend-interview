@@ -1,6 +1,6 @@
 # EP.04 SSE 流式输出
 
-> 对应正文：[docs/04-ai-development.md](../docs/04-ai-development.md)（AI-B2 流式输出与首字延迟 / AI-B3 SSE 基本原理 / AI-I1 SSE vs WebSocket 选型 / AI-I2 fetch + ReadableStream 手写 SSE 解析）· 配套示例：`../examples/04-ai/server.mjs`、`../examples/04-ai/public/chat.html`、`../examples/04-ai/public/image.html`
+> 对应正文：[docs/04-ai-development.md](../docs/04-ai-development.md)（AI-B2 流式输出与首字延迟 / AI-B3 SSE 基本原理 / AI-I1 SSE vs WebSocket 选型 / AI-I2 fetch + ReadableStream 手写 SSE 解析 / AI-I4 审查 AI 生成的流式聊天组件）· 配套示例：`../examples/04-ai/server.mjs`、`../examples/04-ai/public/chat.html`、`../examples/04-ai/public/image.html`、`../examples/04-ai-review-dojo/`（AI 代码审查道场 C1/C2/C3）
 
 ## 剧情回顾
 

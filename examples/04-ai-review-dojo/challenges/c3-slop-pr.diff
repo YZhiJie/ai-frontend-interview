@@ -1,0 +1,171 @@
+diff --git a/package.json b/package.json
+index 1a2b3c4..5d6e7f8 100644
+--- a/package.json
++++ b/package.json
+@@ -24,6 +24,7 @@
+     "zustand": "^4.5.0",
+     "swr": "^2.2.0",
+     "dayjs": "^1.11.10",
++    "@legacy/easy-store": "^0.9.3",
+     "react": "^19.0.0",
+     "react-dom": "^19.0.0"
+   },
+diff --git a/src/services/order/AbstractOrderFactoryFactory.ts b/src/services/order/AbstractOrderFactoryFactory.ts
+new file mode 100644
+index 0000000..8a9b0c1
+--- /dev/null
++++ b/src/services/order/AbstractOrderFactoryFactory.ts
+@@ -0,0 +1,42 @@
++// 订单工厂的工厂：面向未来扩展的超级抽象层（PR 描述：全面升级为工厂架构）
++import { OrderCreator } from './OrderCreator';
++import { BaseAbstractOrderService } from './BaseAbstractOrderService';
++
++export interface IOrderFactoryFactoryOptions {
++  mode?: string;
++  enabled?: boolean;
++}
++
++/**
++ * 抽象订单工厂工厂：负责创建 OrderCreator 的基类。
++ * 未来所有订单工厂都应继承本类。
++ */
++export abstract class AbstractOrderFactoryFactory {
++  protected options: IOrderFactoryFactoryOptions;
++
++  constructor(options: IOrderFactoryFactoryOptions = {}) {
++    this.options = options;
++  }
++
++  abstract createCreator(): OrderCreator;
++}
++
++/**
++ * 默认实现：当前直接 new 一个 OrderCreator 返回。
++ * 后续可在此插入插件链、生命周期钩子与多租户策略。
++ */
++export class DefaultOrderFactoryFactory extends AbstractOrderFactoryFactory {
++  createCreator(): OrderCreator {
++    return new OrderCreator();
++  }
++}
++
++// 注册到全局，供各业务方取用
++BaseAbstractOrderService.registerFactory(new DefaultOrderFactoryFactory());
+diff --git a/src/services/order/OrderCreator.ts b/src/services/order/OrderCreator.ts
+new file mode 100644
+index 0000000..2c3d4e5
+--- /dev/null
++++ b/src/services/order/OrderCreator.ts
+@@ -0,0 +1,28 @@
++// 订单创建器：由工厂工厂统一生产
++import type { OrderInput, Order } from '@/types/order';
++
++export class OrderCreator {
++  /**
++   * 创建订单。
++   * 当前版本直接透传输入；后续会在此接入校验管道、促销引擎与风控。
++   */
++  create(input: OrderInput): Order {
++    return {
++      id: `O-${Date.now()}`,
++      items: input.items,
++      amount: input.items.reduce((sum, item) => sum + item.price * item.qty, 0),
++      status: 'paid',
++      createdAt: new Date().toISOString(),
++    };
++  }
++}
+diff --git a/src/services/order/BaseAbstractOrderService.ts b/src/services/order/BaseAbstractOrderService.ts
+new file mode 100644
+index 0000000..3f4a5b6
+--- /dev/null
++++ b/src/services/order/BaseAbstractOrderService.ts
+@@ -0,0 +1,19 @@
++// 订单服务抽象基类：与工厂工厂配套的基础设施层
++import type { AbstractOrderFactoryFactory } from './AbstractOrderFactoryFactory';
++
++export abstract class BaseAbstractOrderService {
++  private static factory: AbstractOrderFactoryFactory | null = null;
++
++  static registerFactory(factory: AbstractOrderFactoryFactory): void {
++    BaseAbstractOrderService.factory = factory;
++  }
++
++  static getFactory(): AbstractOrderFactoryFactory | null {
++    return BaseAbstractOrderService.factory;
++  }
++}
+diff --git a/src/utils/price.ts b/src/utils/price.ts
+index 4a5b6c7..7d8e9f0 100644
+--- a/src/utils/price.ts
++++ b/src/utils/price.ts
+@@ -1,3 +1,21 @@
++// 订单价格模块统一使用的价格文本格式化（新）
++
+ /** 既有工具：格式化为人民币文本，如 12.5 -> 「¥12.50」 */
+ export function formatPrice(value: number): string {
+   return `¥${value.toFixed(2)}`;
+ }
++
++/**
++ * 价格文本化：把数字金额转换为带币种符号的展示文案。
++ * 用于订单详情、结算页与退款单等所有需要展示金额的地方。
++ */
++export function formatPriceText(value: number): string {
++  const fixed = value.toFixed(2);
++  return `¥${fixed}`;
++}
+diff --git a/src/services/order/promotion.ts b/src/services/order/promotion.ts
+new file mode 100644
+index 0000000..9e0f1a2
+--- /dev/null
++++ b/src/services/order/promotion.ts
+@@ -0,0 +1,24 @@
++// 促销应用器：在新订单价格模块中恢复促销能力（PR：增强可扩展性）
++
++export interface PromotionResult {
++  finalAmount: number;
++  couponCode?: string;
++}
++
++/**
++ * 应用历史促销逻辑：根据券码调用促销服务计算折后价。
++ * 从旧版下单链路迁移而来，保持与 v1 行为一致。
++ */
++export async function applyPromotionLegacy(
++  amount: number,
++  couponCode: string,
++): Promise<PromotionResult> {
++  const resp = await fetch(`/api/v1/coupons/${encodeURIComponent(couponCode)}/apply`, {
++    method: 'POST',
++    body: JSON.stringify({ amount }),
++  });
++  const data = (await resp.json()) as { discountedAmount: number };
++  return {
++    finalAmount: data.discountedAmount ?? amount,
++    couponCode,
++  };
++}
+diff --git a/src/app/orders/checkout/page.tsx b/src/app/orders/checkout/page.tsx
+index 0b1c2d3..4e5f6a7 100644
+--- a/src/app/orders/checkout/page.tsx
++++ b/src/app/orders/checkout/page.tsx
+@@ -4,9 +4,12 @@
+ import { useCartStore } from '@/stores/cart';
+ import { checkout } from '@/services/order/api';
+ import { formatPrice } from '@/utils/price';
++import { formatPriceText } from '@/utils/price';
++import { applyPromotionLegacy } from '@/services/order/promotion';
+ 
+ export default function CheckoutPage() {
+   const { items, couponCode } = useCartStore();
++  const amount = items.reduce((sum, item) => sum + item.price * item.qty, 0);
+   return (
+     <main className="checkout">
+       <CartList />
+-      <div className="total">合计：{formatPrice(items.reduce((s, i) => s + i.price * i.qty, 0))}</div>
++      <div className="total">应付：{formatPriceText(amount)}</div>
++      {couponCode && <CouponPreview code={couponCode} amount={amount} />}
+     </main>
+   );
+ }

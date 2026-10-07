@@ -59,6 +59,15 @@ curl -N -G --data-urlencode 'prompt=你好' --max-time 4 http://127.0.0.1:3401/a
 
 纯 `node:http` 实现：手写 SSE 分帧推送（`data:` 帧 + `[DONE]` + 断连清理）、文生图异步任务状态机（queued→running→done，确定性失败 + 重试）、前端 `ReadableStream` 手写解析与 `AbortController` 中断。详见 [04-ai/README.md](04-ai/README.md)。
 
+### 04B · AI 代码审查道场 —— 找 bug + 攻防复现（题号 AI-I4/A5/A6）
+
+```bash
+npx tsx 04-ai-review-dojo/run-all.ts
+# 输出结尾：道场全部用例通过：3/3 个挑战（DOJO-C1, DOJO-C2, DOJO-C3）
+```
+
+3 个「审查 AI 生成代码」实操挑战，题目（雷源码）与答案册/修复版分离，可直接当面试题：C1 流式聊天组件（XSS/跨 chunk 分帧/多字节截断，穷举全部字节切点复现）；C2 Agent 退款工具（确定性 mock 模型跑通「备注间接注入→越权→未审批退款」攻击链，再演示会话鉴权/人工审批门/幂等防重放）；C3 架构 slop PR 静态审查（禁用依赖/空壳抽象/重复 helper/复活废弃逻辑 + 返工指令与前移门禁答案）。详见 [04-ai-review-dojo/README.md](04-ai-review-dojo/README.md)。
+
 ### 05 · Node.js —— 零依赖脚本 + Koa 子工程
 
 ```bash
@@ -122,6 +131,7 @@ examples/
 ├── 02-css/                   # 8 个静态 HTML
 ├── 03-data-visualization/    # 5 个静态 HTML（cdnjs CDN）
 ├── 04-ai/                    # 零依赖 mock 服务 + 前端页面
+├── 04-ai-review-dojo/        # AI 代码审查道场：雷源码/答案分离 + 可运行攻防复现
 ├── 05-nodejs/                # 零依赖脚本 + modules/ + Koa 子工程 + 迷你脚手架
 ├── 06-nextjs/interview-app/  # Next.js 15 + React 19 完整工程
 ├── 07-algorithms/            # 10 个算法模块 + run-all.ts

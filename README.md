@@ -1,12 +1,12 @@
 # AI 前端面试题库 · AI-Era Frontend Interview
 
-> 面向 AI 时代的前端开发工程师综合能力评估面试题集。覆盖 8 大技术领域、79 道分级题目、8 幅漫画式教程，适用于中高级前端开发工程师岗位的招聘选拔与自学提升。
+> 面向 AI 时代的前端开发工程师综合能力评估面试题集。覆盖 8 大技术领域、82 道分级题目、8 幅漫画式教程，适用于中高级前端开发工程师岗位的招聘选拔与自学提升。
 
 ## ✨ 特性
 
 - **三级难度分层**：每个领域按 Basic / Intermediate / Advanced 三级组织，难度递进清晰
 - **四要素题目结构**：每题包含问题描述、考察要点、参考答案要点、难度评级
-- **五类题型覆盖**：理论概念题、代码分析题、实际场景应用题、技术选型题、架构设计题
+- **六类题型覆盖**：理论概念题、代码分析题、实际场景应用题、技术选型题、架构设计题、代码审查题（AI 产出审查专项）
 - **AI 时代视角**：题目融入 LLM 应用、智能体、流式渲染等 AI 时代前端新命题
 - **漫画式教程**：每领域配套一幅四格漫画（1200×840 SVG），让核心概念一眼看懂
 - **可运行示例**：[examples/](examples/) 提供全部代码题的配套实现（tsx 脚本 / 静态 HTML / mock 服务 / Next.js 15 完整工程），均实跑验证，**无需真实 API Key**
@@ -19,13 +19,13 @@
 | 1 | JavaScript 底层原理 | [docs/01-javascript.md](docs/01-javascript.md) | 12（5/4/3） | [EP.01 JS 事件循环](comics/ep01-js-event-loop.svg) |
 | 2 | CSS 底层原理 | [docs/02-css.md](docs/02-css.md) | 9（3/3/3） | [EP.02 CSS 层叠上下文](comics/ep02-css-stacking.svg) |
 | 3 | 数据可视化技术 | [docs/03-data-visualization.md](docs/03-data-visualization.md) | 10（3/3/4） | [EP.03 Canvas vs SVG](comics/ep03-viz-canvas-svg.svg) |
-| 4 | AI 应用开发 | [docs/04-ai-development.md](docs/04-ai-development.md) | 10（3/3/4） | [EP.04 SSE 流式输出](comics/ep04-ai-sse.svg) |
+| 4 | AI 应用开发 | [docs/04-ai-development.md](docs/04-ai-development.md) | 13（3/4/6） | [EP.04 SSE 流式输出](comics/ep04-ai-sse.svg) |
 | 5 | Node.js 开发能力 | [docs/05-nodejs.md](docs/05-nodejs.md) | 9（3/3/3） | [EP.05 Node 事件循环](comics/ep05-node-eventloop.svg) |
 | 6 | 全栈开发（Next.js） | [docs/06-fullstack-nextjs.md](docs/06-fullstack-nextjs.md) | 9（3/3/3） | [EP.06 SSR/SSG/ISR 选型](comics/ep06-nextjs-rendering.svg) |
 | 7 | 数据结构与算法 | [docs/07-algorithms.md](docs/07-algorithms.md) | 11（4/4/3） | [EP.07 排序复杂度之旅](comics/ep07-algo-sorting.svg) |
 | 8 | CI/CD 自动化 | [docs/08-cicd.md](docs/08-cicd.md) | 9（3/3/3） | [EP.08 CI/CD 流水线](comics/ep08-cicd-pipeline.svg) |
 
-**合计：79 题**（Basic 24 · Intermediate 26 · Advanced 29）
+**合计：82 题**（Basic 27 · Intermediate 27 · Advanced 28）
 
 ## 📊 难度评级说明
 
@@ -129,6 +129,7 @@ ai-frontend-interview/
     ├── 02-css/                        # 8 个可交互静态 HTML
     ├── 03-data-visualization/         # 5 个 ECharts/D3/Three/Canvas 页面
     ├── 04-ai/                         # 零依赖 mock SSE + 文生图服务
+    ├── 04-ai-review-dojo/             # AI 代码审查道场（雷源码/答案分离 + 攻防复现）
     ├── 05-nodejs/                     # 零依赖脚本 + Koa REST API + 迷你脚手架
     ├── 06-nextjs/interview-app/       # Next.js 15 + React 19 完整工程
     ├── 07-algorithms/                 # 10 个算法模块 + run-all.ts 一键自测
@@ -137,6 +138,7 @@ ai-frontend-interview/
 
 ## 📌 版本记录
 
+- **v1.3.0**（2026-10-07）：新增「审查 AI 代码」专项三题（[AI-I4/A5/A6](docs/04-ai-development.md)：流式组件找茬、Agent 工具安全审查、架构 slop PR 处置），配套 [examples/04-ai-review-dojo](examples/04-ai-review-dojo/) 审查道场——雷源码与答案分离，含字节切点穷举、间接注入攻击链等可运行复现（3/3 实跑通过），总题量 79→82
 - **v1.2.0**（2026-10-07）：漫画教程升级为整合阅读器（[comics/index.html](comics/index.html)）——翻页/长卷双模式、讲解抽屉、进度记忆、键盘导航、按需预取；新增 8 话讲解 MD（剧情回顾/知识点拆解/坑点清单/自测题），门禁扩展 MD 完整性校验
 - **v1.1.0**（2026-10-07）：新增 [examples/](examples/) 配套可运行示例——40+ 可运行单元，覆盖全部 8 领域（tsx 脚本/静态 HTML/mock 服务/Koa/Next.js 15 完整工程/workflow 样例），经实跑验证
 - **v1.0.0**（2026-10-07）：首发 8 大领域 79 道分级面试题 + 8 幅漫画教程 + 门禁校验脚本

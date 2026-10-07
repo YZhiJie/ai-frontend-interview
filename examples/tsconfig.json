@@ -9,5 +9,9 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["node"]
   },
-  "include": ["01-javascript/**/*.ts", "07-algorithms/**/*.ts"]
+  "include": [
+    "01-javascript/**/*.ts",
+    "07-algorithms/**/*.ts",
+    "04-ai-review-dojo/**/*.ts"
+  ]
 }
