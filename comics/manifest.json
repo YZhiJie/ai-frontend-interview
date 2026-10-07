@@ -1,0 +1,13 @@
+{
+  "canvas": { "width": 1200, "height": 840 },
+  "episodes": [
+    { "ep": 1, "title": "JS 事件循环", "slug": "ep01-js-event-loop" },
+    { "ep": 2, "title": "CSS 层叠上下文", "slug": "ep02-css-stacking" },
+    { "ep": 3, "title": "Canvas vs SVG", "slug": "ep03-viz-canvas-svg" },
+    { "ep": 4, "title": "SSE 流式输出", "slug": "ep04-ai-sse" },
+    { "ep": 5, "title": "Node 事件循环", "slug": "ep05-node-eventloop" },
+    { "ep": 6, "title": "SSR/SSG/ISR 选型", "slug": "ep06-nextjs-rendering" },
+    { "ep": 7, "title": "排序复杂度之旅", "slug": "ep07-algo-sorting" },
+    { "ep": 8, "title": "CI/CD 流水线", "slug": "ep08-cicd-pipeline" }
+  ]
+}
